@@ -30,6 +30,7 @@ export default function UsersPage() {
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null)
   const [form, setForm] = useState(INIT)
   const [saving, setSaving] = useState(false)
+  const [formError, setFormError] = useState('')
   const [levels, setLevels] = useState<Level[]>([])
   const [depts, setDepts] = useState<Dept[]>([])
   const [allDesigs, setAllDesigs] = useState<Desig[]>([])
@@ -55,34 +56,56 @@ export default function UsersPage() {
 
   const filteredDesigs = allDesigs.filter(d => !form.department_id || d.department_id === form.department_id)
 
-  function openAdd() { setEditing(null); setForm(INIT); setOpen(true) }
+  function openAdd() { setEditing(null); setForm(INIT); setFormError(''); setOpen(true) }
   function openEdit(row: Record<string, unknown>) {
     setEditing(row)
+    setFormError('')
     setForm({ name: String(row.name), email: String(row.email), contact: String(row.contact), password: '', department_id: String(row.department_id ?? ''), designation_id: String(row.designation_id ?? ''), level_id: String(row.level_id), profile: String(row.profile), manager_user_id: String(row.manager_user_id ?? ''), status: String(row.status) })
     setOpen(true)
   }
 
   async function handleSave() {
-    if (!form.name.trim() || !form.email.trim() || !form.contact.trim() || !form.level_id || !form.profile) return
-    if (!editing && !form.password.trim()) return
+    setFormError('')
+    if (!form.name.trim()) { setFormError('Full name is required'); return }
+    if (!form.email.trim()) { setFormError('Email is required'); return }
+    if (!form.contact.trim()) { setFormError('Contact number is required'); return }
+    if (!form.level_id) { setFormError('Level is required'); return }
+    if (!form.profile) { setFormError('Profile is required'); return }
+    if (!editing && !form.password.trim()) { setFormError('Password is required for new users'); return }
     setSaving(true)
     const body: Record<string, unknown> = { name: form.name.trim(), email: form.email.trim(), contact: form.contact.trim(), department_id: form.department_id || null, designation_id: form.designation_id || null, level_id: form.level_id, profile: form.profile, manager_user_id: form.manager_user_id || null, status: form.status }
     if (!editing || form.password.trim()) body.password = form.password.trim()
-    const ok = editing ? await crud.update(editing.id as string, body) : await crud.create(body)
+    const res = await fetch(editing ? `/api/masters/users/${editing.id as string}` : '/api/masters/users', {
+      method: editing ? 'PUT' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    const data = await res.json()
     setSaving(false)
-    if (ok !== false && ok !== null) { setOpen(false); fetch('/api/masters/users').then(r => r.json()).then(setAllUsers) }
+    if (!res.ok) {
+      setFormError(data.error ?? 'Save failed. Please try again.')
+      return
+    }
+    setOpen(false)
+    crud.refetch()
+    fetch('/api/masters/users').then(r => r.json()).then(setAllUsers)
   }
 
   const setF = (k: string) => (v: string) => setForm(f => ({ ...f, [k]: v }))
 
   return (
     <>
-      <CrudPage title="Users" columns={COLS} rows={crud.rows} allRowsCount={crud.allRows.length}
+      <CrudPage title="Users" backHref="/masters" columns={COLS} rows={crud.rows} allRowsCount={crud.allRows.length}
         isLoading={crud.isLoading} search={crud.search} onSearchChange={crud.setSearch}
         page={crud.page} totalPages={crud.totalPages} onPage={crud.setPage}
         onAdd={openAdd} onEdit={openEdit} showActive={false}
         onDelete={r => crud.remove(r.id as string)} />
       <Modal title={editing ? 'Edit User' : 'Add User'} isOpen={open} onClose={() => setOpen(false)} onSave={handleSave} isSaving={saving} size="lg">
+        {formError && (
+          <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3 -mt-2">
+            {formError}
+          </div>
+        )}
         <div className="grid grid-cols-2 gap-3">
           <div className="col-span-2">
             <label className="block text-sm font-medium text-gray-700 mb-1">Full Name <span className="text-red-500">*</span></label>

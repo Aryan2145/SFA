@@ -267,6 +267,25 @@ CREATE OR REPLACE TRIGGER daily_visits_updated_at BEFORE UPDATE ON daily_visits 
 ALTER TABLE daily_visits ENABLE ROW LEVEL SECURITY;
 
 -- ================================================================
+-- H) TERRITORY MAPPING
+-- ================================================================
+
+CREATE TABLE IF NOT EXISTS user_territory_mappings (
+  id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  tenant_id   UUID NOT NULL,
+  user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  state_ids   UUID[] NOT NULL DEFAULT '{}',
+  district_ids UUID[] NOT NULL DEFAULT '{}',
+  taluka_ids  UUID[] NOT NULL DEFAULT '{}',
+  village_ids UUID[] NOT NULL DEFAULT '{}',
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(tenant_id, user_id)
+);
+CREATE OR REPLACE TRIGGER user_territory_mappings_updated_at BEFORE UPDATE ON user_territory_mappings FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+ALTER TABLE user_territory_mappings ENABLE ROW LEVEL SECURITY;
+
+-- ================================================================
 -- G) WEEKLY PLAN
 -- ================================================================
 

@@ -12,6 +12,7 @@ export interface Column {
 
 interface CrudPageProps {
   title: string
+  backHref?: string
   columns: Column[]
   rows: Record<string, unknown>[]
   allRowsCount: number
@@ -30,11 +31,17 @@ interface CrudPageProps {
 }
 
 export default function CrudPage({
-  title, columns, rows, allRowsCount, isLoading, search, onSearchChange,
+  title, backHref, columns, rows, allRowsCount, isLoading, search, onSearchChange,
   page, totalPages, onPage, onAdd, onEdit, onDelete, onToggleActive, showActive = true, addLabel = '+ Add',
 }: CrudPageProps) {
   return (
     <div>
+      {backHref && (
+        <a href={backHref} className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 mb-4 group">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" /></svg>
+          Back to Masters
+        </a>
+      )}
       <div className="flex items-center justify-between mb-5">
         <h2 className="text-xl font-semibold text-gray-800">{title}</h2>
         <button onClick={onAdd} className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition">

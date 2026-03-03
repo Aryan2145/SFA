@@ -37,7 +37,7 @@ export default function StatesPage() {
   return (
     <>
       <CrudPage
-        title="States" columns={COLS} rows={crud.rows} allRowsCount={crud.allRows.length}
+        title="States" backHref="/masters" columns={COLS} rows={crud.rows} allRowsCount={crud.allRows.length}
         isLoading={crud.isLoading} search={crud.search} onSearchChange={crud.setSearch}
         page={crud.page} totalPages={crud.totalPages} onPage={crud.setPage}
         onAdd={openAdd} onEdit={openEdit} onToggleActive={handleToggle}

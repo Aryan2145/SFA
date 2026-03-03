@@ -39,7 +39,7 @@ export default function VillagesPage() {
 
   return (
     <>
-      <CrudPage title="Villages" columns={COLS} rows={crud.rows} allRowsCount={crud.allRows.length}
+      <CrudPage title="Villages" backHref="/masters" columns={COLS} rows={crud.rows} allRowsCount={crud.allRows.length}
         isLoading={crud.isLoading} search={crud.search} onSearchChange={crud.setSearch}
         page={crud.page} totalPages={crud.totalPages} onPage={crud.setPage}
         onAdd={openAdd} onEdit={openEdit} onToggleActive={(r, v) => crud.update(r.id as string, { is_active: v })}
