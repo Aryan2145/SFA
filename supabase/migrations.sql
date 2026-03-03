@@ -1,9 +1,34 @@
 -- ============================================================
--- RGB Admin — Location Master Tables
--- Run this in the Supabase SQL Editor (Dashboard > SQL Editor)
+-- RGB SFA Admin — Full Schema Migration
+-- Run in Supabase SQL Editor (Dashboard → SQL Editor → New Query)
 -- ============================================================
 
--- updated_at auto-update trigger function
+-- ----------------------------------------------------------------
+-- DROP old tables (from previous SERIAL-PK schema) — safe to re-run
+-- ----------------------------------------------------------------
+DROP TABLE IF EXISTS weekly_plan_audit_logs CASCADE;
+DROP TABLE IF EXISTS weekly_plan_items CASCADE;
+DROP TABLE IF EXISTS weekly_plans CASCADE;
+DROP TABLE IF EXISTS users CASCADE;
+DROP TABLE IF EXISTS levels CASCADE;
+DROP TABLE IF EXISTS designations CASCADE;
+DROP TABLE IF EXISTS departments CASCADE;
+DROP TABLE IF EXISTS products CASCADE;
+DROP TABLE IF EXISTS product_subcategories CASCADE;
+DROP TABLE IF EXISTS product_categories CASCADE;
+DROP TABLE IF EXISTS dealers CASCADE;
+DROP TABLE IF EXISTS distributors CASCADE;
+DROP TABLE IF EXISTS villages CASCADE;
+DROP TABLE IF EXISTS talukas CASCADE;
+DROP TABLE IF EXISTS districts CASCADE;
+DROP TABLE IF EXISTS states CASCADE;
+
+-- Enable UUID extension
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- ----------------------------------------------------------------
+-- Shared trigger: updated_at
+-- ----------------------------------------------------------------
 CREATE OR REPLACE FUNCTION update_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -12,83 +37,274 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- ---------------------------------------------------------------
--- states
--- ---------------------------------------------------------------
+-- ================================================================
+-- A) LOCATION MASTERS
+-- ================================================================
+
 CREATE TABLE IF NOT EXISTS states (
-  id         SERIAL PRIMARY KEY,
-  name       TEXT    NOT NULL,
+  id         UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  tenant_id  UUID NOT NULL,
+  name       TEXT NOT NULL,
   is_active  BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-
-CREATE UNIQUE INDEX IF NOT EXISTS states_name_lower_idx ON states (LOWER(name));
-
-CREATE OR REPLACE TRIGGER states_updated_at
-  BEFORE UPDATE ON states
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
-
+CREATE UNIQUE INDEX IF NOT EXISTS states_tenant_name ON states(tenant_id, LOWER(name));
+CREATE OR REPLACE TRIGGER states_updated_at BEFORE UPDATE ON states FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 ALTER TABLE states ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY states_allow_all ON states FOR ALL USING (true) WITH CHECK (true);
-
--- ---------------------------------------------------------------
--- districts
--- ---------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS districts (
-  id         SERIAL PRIMARY KEY,
-  state_id   INTEGER NOT NULL REFERENCES states(id) ON DELETE RESTRICT,
-  name       TEXT    NOT NULL,
+  id         UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  tenant_id  UUID NOT NULL,
+  state_id   UUID NOT NULL REFERENCES states(id) ON DELETE RESTRICT,
+  name       TEXT NOT NULL,
   is_active  BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-
-CREATE OR REPLACE TRIGGER districts_updated_at
-  BEFORE UPDATE ON districts
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
-
+CREATE UNIQUE INDEX IF NOT EXISTS districts_tenant_state_name ON districts(tenant_id, state_id, LOWER(name));
+CREATE OR REPLACE TRIGGER districts_updated_at BEFORE UPDATE ON districts FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 ALTER TABLE districts ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY districts_allow_all ON districts FOR ALL USING (true) WITH CHECK (true);
-
--- ---------------------------------------------------------------
--- talukas
--- ---------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS talukas (
-  id          SERIAL PRIMARY KEY,
-  district_id INTEGER NOT NULL REFERENCES districts(id) ON DELETE RESTRICT,
-  name        TEXT    NOT NULL,
+  id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  tenant_id   UUID NOT NULL,
+  district_id UUID NOT NULL REFERENCES districts(id) ON DELETE RESTRICT,
+  name        TEXT NOT NULL,
   is_active   BOOLEAN NOT NULL DEFAULT TRUE,
   created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-
-CREATE OR REPLACE TRIGGER talukas_updated_at
-  BEFORE UPDATE ON talukas
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
-
+CREATE UNIQUE INDEX IF NOT EXISTS talukas_tenant_district_name ON talukas(tenant_id, district_id, LOWER(name));
+CREATE OR REPLACE TRIGGER talukas_updated_at BEFORE UPDATE ON talukas FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 ALTER TABLE talukas ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY talukas_allow_all ON talukas FOR ALL USING (true) WITH CHECK (true);
-
--- ---------------------------------------------------------------
--- villages
--- ---------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS villages (
-  id         SERIAL PRIMARY KEY,
-  taluka_id  INTEGER NOT NULL REFERENCES talukas(id) ON DELETE RESTRICT,
-  name       TEXT    NOT NULL,
+  id         UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  tenant_id  UUID NOT NULL,
+  taluka_id  UUID NOT NULL REFERENCES talukas(id) ON DELETE RESTRICT,
+  name       TEXT NOT NULL,
   is_active  BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-
-CREATE OR REPLACE TRIGGER villages_updated_at
-  BEFORE UPDATE ON villages
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
-
+CREATE UNIQUE INDEX IF NOT EXISTS villages_tenant_taluka_name ON villages(tenant_id, taluka_id, LOWER(name));
+CREATE OR REPLACE TRIGGER villages_updated_at BEFORE UPDATE ON villages FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 ALTER TABLE villages ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY villages_allow_all ON villages FOR ALL USING (true) WITH CHECK (true);
+-- ================================================================
+-- B) BUSINESS MASTERS
+-- ================================================================
+
+CREATE TABLE IF NOT EXISTS distributors (
+  id         UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  tenant_id  UUID NOT NULL,
+  name       TEXT NOT NULL,
+  phone      TEXT,
+  email      TEXT,
+  address    TEXT,
+  is_active  BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE OR REPLACE TRIGGER distributors_updated_at BEFORE UPDATE ON distributors FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+ALTER TABLE distributors ENABLE ROW LEVEL SECURITY;
+
+CREATE TABLE IF NOT EXISTS dealers (
+  id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  tenant_id       UUID NOT NULL,
+  distributor_id  UUID REFERENCES distributors(id) ON DELETE SET NULL,
+  name            TEXT NOT NULL,
+  state_id        UUID NOT NULL REFERENCES states(id),
+  district_id     UUID NOT NULL REFERENCES districts(id),
+  taluka_id       UUID NOT NULL REFERENCES talukas(id),
+  village_id      UUID REFERENCES villages(id),
+  latitude        NUMERIC(10,7),
+  longitude       NUMERIC(10,7),
+  is_active       BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT dealers_lat_check CHECK (latitude IS NULL OR (latitude >= -90 AND latitude <= 90)),
+  CONSTRAINT dealers_lng_check CHECK (longitude IS NULL OR (longitude >= -180 AND longitude <= 180))
+);
+CREATE OR REPLACE TRIGGER dealers_updated_at BEFORE UPDATE ON dealers FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+ALTER TABLE dealers ENABLE ROW LEVEL SECURITY;
+
+-- ================================================================
+-- C) PRODUCT MASTERS
+-- ================================================================
+
+CREATE TABLE IF NOT EXISTS product_categories (
+  id         UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  tenant_id  UUID NOT NULL,
+  name       TEXT NOT NULL,
+  is_active  BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS product_categories_tenant_name ON product_categories(tenant_id, LOWER(name));
+CREATE OR REPLACE TRIGGER product_categories_updated_at BEFORE UPDATE ON product_categories FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+ALTER TABLE product_categories ENABLE ROW LEVEL SECURITY;
+
+CREATE TABLE IF NOT EXISTS product_subcategories (
+  id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  tenant_id   UUID NOT NULL,
+  category_id UUID NOT NULL REFERENCES product_categories(id) ON DELETE RESTRICT,
+  name        TEXT NOT NULL,
+  is_active   BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS product_subcategories_tenant_cat_name ON product_subcategories(tenant_id, category_id, LOWER(name));
+CREATE OR REPLACE TRIGGER product_subcategories_updated_at BEFORE UPDATE ON product_subcategories FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+ALTER TABLE product_subcategories ENABLE ROW LEVEL SECURITY;
+
+CREATE TABLE IF NOT EXISTS products (
+  id             UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  tenant_id      UUID NOT NULL,
+  name           TEXT NOT NULL,
+  category_id    UUID NOT NULL REFERENCES product_categories(id),
+  subcategory_id UUID NOT NULL REFERENCES product_subcategories(id),
+  price          NUMERIC(12,2) NOT NULL,
+  sku            TEXT,
+  is_active      BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE OR REPLACE TRIGGER products_updated_at BEFORE UPDATE ON products FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+ALTER TABLE products ENABLE ROW LEVEL SECURITY;
+
+-- ================================================================
+-- D) ORGANIZATION MASTERS
+-- ================================================================
+
+CREATE TABLE IF NOT EXISTS departments (
+  id         UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  tenant_id  UUID NOT NULL,
+  name       TEXT NOT NULL,
+  is_active  BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS departments_tenant_name ON departments(tenant_id, LOWER(name));
+CREATE OR REPLACE TRIGGER departments_updated_at BEFORE UPDATE ON departments FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+ALTER TABLE departments ENABLE ROW LEVEL SECURITY;
+
+CREATE TABLE IF NOT EXISTS designations (
+  id            UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  tenant_id     UUID NOT NULL,
+  department_id UUID NOT NULL REFERENCES departments(id) ON DELETE RESTRICT,
+  name          TEXT NOT NULL,
+  is_active     BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE OR REPLACE TRIGGER designations_updated_at BEFORE UPDATE ON designations FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+ALTER TABLE designations ENABLE ROW LEVEL SECURITY;
+
+CREATE TABLE IF NOT EXISTS levels (
+  id         UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  tenant_id  UUID NOT NULL,
+  level_no   INT NOT NULL,
+  name       TEXT NOT NULL,
+  is_active  BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS levels_tenant_level_no ON levels(tenant_id, level_no);
+CREATE OR REPLACE TRIGGER levels_updated_at BEFORE UPDATE ON levels FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+ALTER TABLE levels ENABLE ROW LEVEL SECURITY;
+
+-- ================================================================
+-- E) USERS + HIERARCHY
+-- ================================================================
+
+CREATE TABLE IF NOT EXISTS users (
+  id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  tenant_id       UUID NOT NULL,
+  name            TEXT NOT NULL,
+  email           TEXT NOT NULL,
+  contact         TEXT NOT NULL,
+  department_id   UUID REFERENCES departments(id),
+  designation_id  UUID REFERENCES designations(id),
+  level_id        UUID NOT NULL REFERENCES levels(id),
+  profile         TEXT NOT NULL DEFAULT 'Standard' CHECK (profile IN ('Administrator', 'Standard')),
+  manager_user_id UUID REFERENCES users(id),
+  status          TEXT NOT NULL DEFAULT 'Active' CHECK (status IN ('Active', 'Inactive')),
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS users_tenant_contact ON users(tenant_id, contact);
+CREATE OR REPLACE TRIGGER users_updated_at BEFORE UPDATE ON users FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+
+-- ================================================================
+-- F) WEEKLY PLAN
+-- ================================================================
+
+CREATE TABLE IF NOT EXISTS weekly_plans (
+  id                    UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  tenant_id             UUID NOT NULL,
+  user_id               UUID NOT NULL REFERENCES users(id),
+  week_start_date       DATE NOT NULL,
+  week_end_date         DATE NOT NULL,
+  status                TEXT NOT NULL DEFAULT 'Draft'
+    CHECK (status IN ('Draft','Submitted','Approved','Rejected','On Hold','Edited by Manager','Resubmitted')),
+  submitted_at          TIMESTAMPTZ,
+  last_status_changed_at TIMESTAMPTZ DEFAULT NOW(),
+  current_manager_id    UUID REFERENCES users(id),
+  manager_comment       TEXT,
+  created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(tenant_id, user_id, week_start_date)
+);
+CREATE OR REPLACE TRIGGER weekly_plans_updated_at BEFORE UPDATE ON weekly_plans FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+ALTER TABLE weekly_plans ENABLE ROW LEVEL SECURITY;
+
+CREATE TABLE IF NOT EXISTS weekly_plan_items (
+  id                    UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  tenant_id             UUID NOT NULL,
+  weekly_plan_id        UUID NOT NULL REFERENCES weekly_plans(id) ON DELETE CASCADE,
+  plan_date             DATE NOT NULL,
+  from_place            TEXT,
+  to_place              TEXT,
+  new_dealers_goal      INT DEFAULT 0,
+  existing_dealers_goal INT DEFAULT 0,
+  mode_of_travel        TEXT CHECK (mode_of_travel IN ('Bike','Bus','Car','Train')),
+  notes                 TEXT,
+  created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE OR REPLACE TRIGGER weekly_plan_items_updated_at BEFORE UPDATE ON weekly_plan_items FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+ALTER TABLE weekly_plan_items ENABLE ROW LEVEL SECURITY;
+
+-- ================================================================
+-- G) IMMUTABLE AUDIT LOG
+-- ================================================================
+
+CREATE TABLE IF NOT EXISTS weekly_plan_audit_logs (
+  id               UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  tenant_id        UUID NOT NULL,
+  weekly_plan_id   UUID NOT NULL REFERENCES weekly_plans(id),
+  actor_user_id    UUID REFERENCES users(id),
+  actor_role       TEXT NOT NULL,
+  action_type      TEXT NOT NULL,
+  timestamp        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  previous_status  TEXT,
+  new_status       TEXT,
+  comment          TEXT,
+  edited_fields    JSONB,
+  ip_address       TEXT,
+  user_agent       TEXT
+);
+-- Append-only: no trigger, no UPDATE allowed via RLS
+ALTER TABLE weekly_plan_audit_logs ENABLE ROW LEVEL SECURITY;
+
+-- ================================================================
+-- RLS POLICIES (Service Role bypasses RLS — anon gets nothing)
+-- ================================================================
+-- NOTE: All server-side operations use SUPABASE_SERVICE_ROLE_KEY which
+-- bypasses RLS. Anon/authenticated client access is denied by default.
+-- To enable fine-grained RLS later, add policies per table.
+-- For now: no policies = default deny for anon key.
+-- ================================================================
