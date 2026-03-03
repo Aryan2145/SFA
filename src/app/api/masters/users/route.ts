@@ -16,10 +16,11 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const { name, email, contact, department_id, designation_id, level_id, profile, manager_user_id } = await req.json()
+  const { name, email, contact, password, department_id, designation_id, level_id, profile, manager_user_id } = await req.json()
   if (!name?.trim()) return NextResponse.json({ error: 'Name is required' }, { status: 400 })
   if (!email?.trim()) return NextResponse.json({ error: 'Email is required' }, { status: 400 })
   if (!contact?.trim()) return NextResponse.json({ error: 'Contact is required' }, { status: 400 })
+  if (!password?.trim()) return NextResponse.json({ error: 'Password is required' }, { status: 400 })
   if (!level_id) return NextResponse.json({ error: 'Level is required' }, { status: 400 })
   if (!profile) return NextResponse.json({ error: 'Profile is required' }, { status: 400 })
 
@@ -41,7 +42,7 @@ export async function POST(req: NextRequest) {
   }
 
   const { data, error } = await supabase.from('users').insert({
-    name: name.trim(), email: email.trim(), contact: contact.trim(),
+    name: name.trim(), email: email.trim(), contact: contact.trim(), password: password.trim(),
     department_id: department_id || null, designation_id: designation_id || null,
     level_id, profile, manager_user_id: manager_user_id || null, tenant_id: tid,
   }).select().single()

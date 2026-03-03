@@ -22,7 +22,7 @@ const COLS: Column[] = [
   { key: 'status', label: 'Status', render: r => <StatusBadge status={String(r.status)} /> },
 ]
 
-const INIT = { name: '', email: '', contact: '', department_id: '', designation_id: '', level_id: '', profile: 'Standard', manager_user_id: '', status: 'Active' }
+const INIT = { name: '', email: '', contact: '', password: '', department_id: '', designation_id: '', level_id: '', profile: 'Standard', manager_user_id: '', status: 'Active' }
 
 export default function UsersPage() {
   const crud = useCrud('/api/masters/users')
@@ -58,14 +58,16 @@ export default function UsersPage() {
   function openAdd() { setEditing(null); setForm(INIT); setOpen(true) }
   function openEdit(row: Record<string, unknown>) {
     setEditing(row)
-    setForm({ name: String(row.name), email: String(row.email), contact: String(row.contact), department_id: String(row.department_id ?? ''), designation_id: String(row.designation_id ?? ''), level_id: String(row.level_id), profile: String(row.profile), manager_user_id: String(row.manager_user_id ?? ''), status: String(row.status) })
+    setForm({ name: String(row.name), email: String(row.email), contact: String(row.contact), password: '', department_id: String(row.department_id ?? ''), designation_id: String(row.designation_id ?? ''), level_id: String(row.level_id), profile: String(row.profile), manager_user_id: String(row.manager_user_id ?? ''), status: String(row.status) })
     setOpen(true)
   }
 
   async function handleSave() {
     if (!form.name.trim() || !form.email.trim() || !form.contact.trim() || !form.level_id || !form.profile) return
+    if (!editing && !form.password.trim()) return
     setSaving(true)
-    const body = { name: form.name.trim(), email: form.email.trim(), contact: form.contact.trim(), department_id: form.department_id || null, designation_id: form.designation_id || null, level_id: form.level_id, profile: form.profile, manager_user_id: form.manager_user_id || null, status: form.status }
+    const body: Record<string, unknown> = { name: form.name.trim(), email: form.email.trim(), contact: form.contact.trim(), department_id: form.department_id || null, designation_id: form.designation_id || null, level_id: form.level_id, profile: form.profile, manager_user_id: form.manager_user_id || null, status: form.status }
+    if (!editing || form.password.trim()) body.password = form.password.trim()
     const ok = editing ? await crud.update(editing.id as string, body) : await crud.create(body)
     setSaving(false)
     if (ok !== false && ok !== null) { setOpen(false); fetch('/api/masters/users').then(r => r.json()).then(setAllUsers) }
@@ -93,6 +95,12 @@ export default function UsersPage() {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Contact <span className="text-red-500">*</span></label>
             <input type="tel" value={form.contact} onChange={e => setF('contact')(e.target.value)} placeholder="10-digit mobile" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Password {editing ? <span className="text-gray-400 font-normal">(leave blank to keep current)</span> : <span className="text-red-500">*</span>}
+            </label>
+            <input type="password" value={form.password} onChange={e => setF('password')(e.target.value)} placeholder={editing ? 'Enter new password to change' : 'Set login password'} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>

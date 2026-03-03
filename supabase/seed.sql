@@ -50,27 +50,27 @@ ON CONFLICT DO NOTHING;
 
 -- ---- Users ----
 -- Admin (L1, Administrator, no manager)
-INSERT INTO users (id, tenant_id, name, email, contact, department_id, designation_id, level_id, profile, manager_user_id, status) VALUES
-  (user_admin, tid, 'Admin User', 'admin@demo.com', '9999999999',
+INSERT INTO users (id, tenant_id, name, email, contact, password, department_id, designation_id, level_id, profile, manager_user_id, status) VALUES
+  (user_admin, tid, 'Admin User', 'admin@demo.com', '9999999999', 'Admin@123',
    dept_sales, desig_rm, lvl1_id, 'Administrator', NULL, 'Active')
-ON CONFLICT (tenant_id, contact) DO NOTHING;
+ON CONFLICT (tenant_id, contact) DO UPDATE SET password = 'Admin@123';
 
 -- Rakesh Jain (L1, Standard, manager = Admin)
-INSERT INTO users (id, tenant_id, name, email, contact, department_id, designation_id, level_id, profile, manager_user_id, status) VALUES
-  (user_rakesh, tid, 'Rakesh Jain', 'rakesh@rgbindia.com', '9033050100',
+INSERT INTO users (id, tenant_id, name, email, contact, password, department_id, designation_id, level_id, profile, manager_user_id, status) VALUES
+  (user_rakesh, tid, 'Rakesh Jain', 'rakesh@rgbindia.com', '9033050100', 'Rakesh@123',
    dept_sales, desig_rm, lvl1_id, 'Standard', user_admin, 'Active')
-ON CONFLICT (tenant_id, contact) DO NOTHING;
+ON CONFLICT (tenant_id, contact) DO UPDATE SET password = 'Rakesh@123';
 
 -- Yogaraj (L2, Standard, manager = Rakesh)
-INSERT INTO users (id, tenant_id, name, email, contact, department_id, designation_id, level_id, profile, manager_user_id, status) VALUES
-  (user_yogaraj, tid, 'Yogaraj', 'yogaraj@rgbindia.com', '9012345678',
+INSERT INTO users (id, tenant_id, name, email, contact, password, department_id, designation_id, level_id, profile, manager_user_id, status) VALUES
+  (user_yogaraj, tid, 'Yogaraj', 'yogaraj@rgbindia.com', '9012345678', 'Yogaraj@123',
    dept_sales, desig_sm, lvl2_id, 'Standard', user_rakesh, 'Active')
-ON CONFLICT (tenant_id, contact) DO NOTHING;
+ON CONFLICT (tenant_id, contact) DO UPDATE SET password = 'Yogaraj@123';
 
 -- Aryan (L3, Standard, manager = Yogaraj)
-INSERT INTO users (id, tenant_id, name, email, contact, department_id, designation_id, level_id, profile, manager_user_id, status) VALUES
-  (user_aryan, tid, 'Aryan', 'aryan@rgbindia.com', '7878038514',
+INSERT INTO users (id, tenant_id, name, email, contact, password, department_id, designation_id, level_id, profile, manager_user_id, status) VALUES
+  (user_aryan, tid, 'Aryan', 'aryan@rgbindia.com', '7878038514', 'Aryan@123',
    dept_sales, desig_se, lvl3_id, 'Standard', user_yogaraj, 'Active')
-ON CONFLICT (tenant_id, contact) DO NOTHING;
+ON CONFLICT (tenant_id, contact) DO UPDATE SET password = 'Aryan@123';
 
 END $$;

@@ -225,6 +225,7 @@ CREATE TABLE IF NOT EXISTS users (
   name            TEXT NOT NULL,
   email           TEXT NOT NULL,
   contact         TEXT NOT NULL,
+  password        TEXT NOT NULL DEFAULT '',
   department_id   UUID REFERENCES departments(id),
   designation_id  UUID REFERENCES designations(id),
   level_id        UUID NOT NULL REFERENCES levels(id),
