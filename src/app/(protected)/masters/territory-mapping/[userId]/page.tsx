@@ -195,7 +195,20 @@ export default function TerritoryCanvasPage() {
         const err = await r.json().catch(() => ({}))
         toast(err.error ?? 'Save failed', 'error')
       } else {
-        toast('Territory saved successfully')
+        // Reload from DB to confirm persistence visually
+        const confirmed = await fetch(`/api/masters/territory-mapping/${userId}`).then(res => res.json())
+        const sIds = new Set<string>(confirmed.state_ids ?? [])
+        const dIds = new Set<string>(confirmed.district_ids ?? [])
+        const tIds = new Set<string>(confirmed.taluka_ids ?? [])
+        const vIds = new Set<string>(confirmed.village_ids ?? [])
+        setStateIds(sIds)
+        setDistrictIds(dIds)
+        setTalukaIds(tIds)
+        setVillageIds(vIds)
+        setExpandedStates(new Set(sIds))
+        setExpandedDistricts(new Set(dIds))
+        setExpandedTalukas(new Set(tIds))
+        toast(`Territory saved — ${sIds.size} states, ${dIds.size} districts, ${tIds.size} talukas, ${vIds.size} villages`)
       }
     } catch {
       toast('Network error — save failed', 'error')
