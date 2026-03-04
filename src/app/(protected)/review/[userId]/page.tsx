@@ -5,6 +5,7 @@ import { useRouter, useParams } from 'next/navigation'
 import StatusBadge from '@/components/ui/StatusBadge'
 import Modal from '@/components/ui/Modal'
 import { useToast } from '@/contexts/ToastContext'
+import CalendarPicker from '@/components/ui/CalendarPicker'
 
 // ---- Helpers ----
 function getMondayOf(date: Date): Date {
@@ -63,33 +64,54 @@ const CATEGORY_COLORS: Record<string, string> = {
 }
 
 // ---- Week Strip (read-only variant) ----
-function WeekStrip({ selectedDate, onSelectDate, onPrevWeek, onNextWeek }: {
+function WeekStrip({ selectedDate, onSelectDate, onPrevWeek, onNextWeek, calendarApiBase }: {
   selectedDate: string; onSelectDate: (d: string) => void; onPrevWeek: () => void; onNextWeek: () => void
+  calendarApiBase?: string
 }) {
   const todayStr = toDateStr(new Date())
   const selDate = new Date(selectedDate + 'T00:00:00')
   const weekDates = getWeekDates(selDate)
+  const [showCalendar, setShowCalendar] = useState(false)
   return (
-    <div className="flex items-center gap-1 mb-4 bg-white rounded-2xl border border-gray-200 px-2 py-2 shadow-sm">
-      <button onClick={onPrevWeek} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 transition shrink-0">
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" /></svg>
-      </button>
-      <div className="flex-1 flex items-center justify-between gap-0.5">
-        {weekDates.map((d, i) => {
-          const ds = toDateStr(d); const isSelected = ds === selectedDate; const isToday = ds === todayStr
-          return (
-            <button key={ds} onClick={() => onSelectDate(ds)}
-              className={`flex flex-col items-center gap-0.5 px-1.5 py-1.5 rounded-xl flex-1 transition relative ${isSelected ? 'bg-blue-600 text-white' : 'hover:bg-gray-50 text-gray-600'}`}>
-              <span className={`text-[10px] font-semibold uppercase tracking-wide ${isSelected ? 'text-blue-100' : 'text-gray-400'}`}>{DAY_LABELS[i]}</span>
-              <span className={`text-sm font-bold ${isSelected ? 'text-white' : isToday ? 'text-blue-600' : 'text-gray-700'}`}>{d.getDate()}</span>
-              {isToday && <span className={`w-1.5 h-1.5 rounded-full absolute bottom-1 ${isSelected ? 'bg-blue-200' : 'bg-blue-500'}`} />}
-            </button>
-          )
-        })}
+    <div className="relative mb-4">
+      <div className="flex items-center gap-1 bg-white rounded-2xl border border-gray-200 px-2 py-2 shadow-sm">
+        <button onClick={onPrevWeek} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 transition shrink-0">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" /></svg>
+        </button>
+        <div className="flex-1 flex items-center justify-between gap-0.5">
+          {weekDates.map((d, i) => {
+            const ds = toDateStr(d); const isSelected = ds === selectedDate; const isToday = ds === todayStr
+            return (
+              <button key={ds} onClick={() => onSelectDate(ds)}
+                className={`flex flex-col items-center gap-0.5 px-1.5 py-1.5 rounded-xl flex-1 transition relative ${isSelected ? 'bg-blue-600 text-white' : 'hover:bg-gray-50 text-gray-600'}`}>
+                <span className={`text-[10px] font-semibold uppercase tracking-wide ${isSelected ? 'text-blue-100' : 'text-gray-400'}`}>{DAY_LABELS[i]}</span>
+                <span className={`text-sm font-bold ${isSelected ? 'text-white' : isToday ? 'text-blue-600' : 'text-gray-700'}`}>{d.getDate()}</span>
+                {isToday && <span className={`w-1.5 h-1.5 rounded-full absolute bottom-1 ${isSelected ? 'bg-blue-200' : 'bg-blue-500'}`} />}
+              </button>
+            )
+          })}
+        </div>
+        <button onClick={onNextWeek} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 transition shrink-0">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" /></svg>
+        </button>
+        <button
+          onClick={() => setShowCalendar(v => !v)}
+          className={`p-1.5 rounded-lg transition shrink-0 ${showCalendar ? 'bg-blue-100 text-blue-600' : 'hover:bg-gray-100 text-gray-400'}`}
+          title="Open calendar"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+          </svg>
+        </button>
       </div>
-      <button onClick={onNextWeek} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 transition shrink-0">
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" /></svg>
-      </button>
+      {showCalendar && (
+        <CalendarPicker
+          selectedDate={selectedDate}
+          onSelectDate={d => { onSelectDate(d); setShowCalendar(false) }}
+          onClose={() => setShowCalendar(false)}
+          calendarApiBase={calendarApiBase}
+        />
+      )}
     </div>
   )
 }
@@ -215,7 +237,7 @@ function WeeklyPlansTab({ userId }: { userId: string }) {
             </div>
             {['Submitted', 'Resubmitted', 'On Hold'].includes(selected.status) && (
               <div className="px-6 py-4 border-t flex flex-wrap gap-2">
-                <button disabled={acting} onClick={() => action(selected.id, 'approve')} className="bg-green-600 hover:bg-green-700 text-white text-xs font-medium px-3 py-1.5 rounded-lg disabled:opacity-50">Approve</button>
+                <button disabled={acting} onClick={() => { setCommentModal({ action: 'approve', planId: selected.id }); setComment('') }} className="bg-green-600 hover:bg-green-700 text-white text-xs font-medium px-3 py-1.5 rounded-lg disabled:opacity-50">Approve</button>
                 <button disabled={acting} onClick={() => { setCommentModal({ action: 'reject', planId: selected.id }); setComment('') }} className="bg-red-600 hover:bg-red-700 text-white text-xs font-medium px-3 py-1.5 rounded-lg disabled:opacity-50">Reject</button>
                 <button disabled={acting} onClick={() => { setCommentModal({ action: 'hold', planId: selected.id }); setComment('') }} className="bg-yellow-500 hover:bg-yellow-600 text-white text-xs font-medium px-3 py-1.5 rounded-lg disabled:opacity-50">Hold</button>
                 <button disabled={acting} onClick={() => { setCommentModal({ action: 'suggest', planId: selected.id }); setComment('') }} className="bg-purple-600 hover:bg-purple-700 text-white text-xs font-medium px-3 py-1.5 rounded-lg disabled:opacity-50">Suggest Changes</button>
@@ -226,14 +248,17 @@ function WeeklyPlansTab({ userId }: { userId: string }) {
       )}
 
       <Modal
-        title={commentModal?.action === 'reject' ? 'Reject' : commentModal?.action === 'hold' ? 'Put On Hold' : 'Suggest Changes'}
+        title={commentModal?.action === 'approve' ? 'Approve Plan' : commentModal?.action === 'reject' ? 'Reject Plan' : commentModal?.action === 'hold' ? 'Put On Hold' : 'Suggest Changes'}
         isOpen={!!commentModal} onClose={() => setCommentModal(null)}
         onSave={() => { if (commentModal) action(commentModal.planId, commentModal.action, { comment }) }}
         isSaving={acting} saveLabel="Confirm">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Comment {commentModal?.action === 'reject' ? '(required)' : '(optional)'}</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Comment {commentModal?.action === 'reject' || commentModal?.action === 'suggest' ? '(required)' : '(optional)'}
+          </label>
           <textarea value={comment} onChange={e => setComment(e.target.value)} rows={3}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+            placeholder={commentModal?.action === 'approve' ? 'Add an optional note for approval…' : 'Enter your comment…'} />
         </div>
       </Modal>
     </div>
@@ -274,6 +299,7 @@ function DailyActivityTab({ userId }: { userId: string }) {
         onSelectDate={setSelectedDate}
         onPrevWeek={() => { const o = weekOffset - 1; setWeekOffset(o); setSelectedDate(toDateStr(getWeekStart(o))) }}
         onNextWeek={() => { const o = weekOffset + 1; setWeekOffset(o); setSelectedDate(toDateStr(getWeekStart(o))) }}
+        calendarApiBase={`/api/daily-activity/calendar?userId=${userId}`}
       />
 
       {loading ? <div className="text-center py-12 text-gray-400">Loading...</div> : visits.length === 0 ? (
@@ -338,6 +364,7 @@ function ExpensesTab({ userId }: { userId: string }) {
         onSelectDate={setSelectedDate}
         onPrevWeek={() => { const o = weekOffset - 1; setWeekOffset(o); setSelectedDate(toDateStr(getWeekStart(o))) }}
         onNextWeek={() => { const o = weekOffset + 1; setWeekOffset(o); setSelectedDate(toDateStr(getWeekStart(o))) }}
+        calendarApiBase={`/api/expenses/calendar?userId=${userId}`}
       />
 
       {loading ? <div className="text-center py-12 text-gray-400">Loading...</div> : expenses.length === 0 ? (

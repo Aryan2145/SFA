@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
 const BASE_NAV = [
   {
@@ -82,7 +82,7 @@ export default function Sidebar({ open }: SidebarProps) {
   const [user, setUser] = useState<{ name: string; phone: string } | null>(null)
   const [hasSubordinates, setHasSubordinates] = useState(false)
 
-  useEffect(() => {
+  const refreshMe = useCallback(() => {
     fetch('/api/auth/me').then(r => r.ok ? r.json() : null).then(d => {
       if (d) {
         setUser({ name: d.name, phone: d.phone })
@@ -90,6 +90,13 @@ export default function Sidebar({ open }: SidebarProps) {
       }
     }).catch(() => {})
   }, [])
+
+  // Re-fetch on mount, pathname change (navigation), and window focus (tab switch)
+  useEffect(() => { refreshMe() }, [pathname, refreshMe])
+  useEffect(() => {
+    window.addEventListener('focus', refreshMe)
+    return () => window.removeEventListener('focus', refreshMe)
+  }, [refreshMe])
 
   const isActive = (href: string) => {
     if (href === '/') return pathname === '/'

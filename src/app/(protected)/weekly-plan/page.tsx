@@ -634,7 +634,7 @@ function ReviewTab() {
             </div>
             {['Submitted', 'Resubmitted', 'On Hold'].includes(selected.status) && (
               <div className="px-6 py-4 border-t flex flex-wrap gap-2">
-                <button disabled={acting} onClick={() => action(selected.id, 'approve')}
+                <button disabled={acting} onClick={() => { setCommentModal({ action: 'approve', planId: selected.id }); setComment('') }}
                   className="bg-green-600 hover:bg-green-700 text-white text-xs font-medium px-3 py-1.5 rounded-lg disabled:opacity-50">Approve</button>
                 <button disabled={acting} onClick={() => { setCommentModal({ action: 'reject', planId: selected.id }); setComment('') }}
                   className="bg-red-600 hover:bg-red-700 text-white text-xs font-medium px-3 py-1.5 rounded-lg disabled:opacity-50">Reject</button>
@@ -650,16 +650,17 @@ function ReviewTab() {
 
       {/* Comment Modal */}
       <Modal
-        title={commentModal?.action === 'reject' ? 'Reject' : commentModal?.action === 'hold' ? 'Put On Hold' : 'Suggest Changes'}
+        title={commentModal?.action === 'approve' ? 'Approve Plan' : commentModal?.action === 'reject' ? 'Reject Plan' : commentModal?.action === 'hold' ? 'Put On Hold' : 'Suggest Changes'}
         isOpen={!!commentModal} onClose={() => setCommentModal(null)}
         onSave={() => { if (commentModal) action(commentModal.planId, commentModal.action, { comment }) }}
         isSaving={acting} saveLabel="Confirm">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Comment {commentModal?.action === 'reject' ? '(required)' : '(optional)'}
+            Comment {commentModal?.action === 'reject' || commentModal?.action === 'suggest' ? '(required)' : '(optional)'}
           </label>
           <textarea value={comment} onChange={e => setComment(e.target.value)} rows={3}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+            placeholder={commentModal?.action === 'approve' ? 'Add an optional note for approval…' : 'Enter your comment…'} />
         </div>
       </Modal>
     </div>

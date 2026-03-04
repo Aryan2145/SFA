@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { useToast } from '@/contexts/ToastContext'
 import RemarksPanel from '@/components/ui/RemarksPanel'
+import CalendarPicker from '@/components/ui/CalendarPicker'
 
 // ---- Types ----
 type Visit = {
@@ -18,6 +19,7 @@ type Visit = {
   latitude: number | null
   longitude: number | null
   address: string | null
+  notes: string | null
 }
 
 type Entity = { id: string; name: string }
@@ -82,73 +84,101 @@ function toDateStr(d: Date) { return d.toISOString().split('T')[0] }
 const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
 // ---- Week Strip ----
-function WeekStrip({ selectedDate, onSelectDate, onPrevWeek, onNextWeek }: {
+function WeekStrip({ selectedDate, onSelectDate, onPrevWeek, onNextWeek, calendarApiBase }: {
   selectedDate: string
   onSelectDate: (d: string) => void
   onPrevWeek: () => void
   onNextWeek: () => void
+  calendarApiBase?: string
 }) {
   const todayStr = toDateStr(new Date())
   const selDate = new Date(selectedDate + 'T00:00:00')
   const weekDates = getWeekDates(selDate)
+  const [showCalendar, setShowCalendar] = useState(false)
 
   return (
-    <div className="flex items-center gap-1 mb-5 bg-white rounded-2xl border border-gray-200 px-2 py-2 shadow-sm">
-      <button onClick={onPrevWeek} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 transition shrink-0">
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
-        </svg>
-      </button>
+    <div className="relative mb-5">
+      <div className="flex items-center gap-1 bg-white rounded-2xl border border-gray-200 px-2 py-2 shadow-sm">
+        <button onClick={onPrevWeek} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 transition shrink-0">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+          </svg>
+        </button>
 
-      <div className="flex-1 flex items-center justify-between gap-0.5">
-        {weekDates.map((d, i) => {
-          const ds = toDateStr(d)
-          const isSelected = ds === selectedDate
-          const isToday = ds === todayStr
-          return (
-            <button
-              key={ds}
-              onClick={() => onSelectDate(ds)}
-              className={`flex flex-col items-center gap-0.5 px-1.5 py-1.5 rounded-xl flex-1 transition relative ${
-                isSelected
-                  ? 'bg-blue-600 text-white'
-                  : 'hover:bg-gray-50 text-gray-600'
-              }`}
-            >
-              <span className={`text-[10px] font-semibold uppercase tracking-wide ${isSelected ? 'text-blue-100' : 'text-gray-400'}`}>
-                {DAY_LABELS[i]}
-              </span>
-              <span className={`text-sm font-bold ${isSelected ? 'text-white' : isToday ? 'text-blue-600' : 'text-gray-700'}`}>
-                {d.getDate()}
-              </span>
-              {isToday && (
-                <span className={`w-1.5 h-1.5 rounded-full absolute bottom-1 ${isSelected ? 'bg-blue-200' : 'bg-blue-500'}`} />
-              )}
-            </button>
-          )
-        })}
+        <div className="flex-1 flex items-center justify-between gap-0.5">
+          {weekDates.map((d, i) => {
+            const ds = toDateStr(d)
+            const isSelected = ds === selectedDate
+            const isToday = ds === todayStr
+            return (
+              <button
+                key={ds}
+                onClick={() => onSelectDate(ds)}
+                className={`flex flex-col items-center gap-0.5 px-1.5 py-1.5 rounded-xl flex-1 transition relative ${
+                  isSelected
+                    ? 'bg-blue-600 text-white'
+                    : 'hover:bg-gray-50 text-gray-600'
+                }`}
+              >
+                <span className={`text-[10px] font-semibold uppercase tracking-wide ${isSelected ? 'text-blue-100' : 'text-gray-400'}`}>
+                  {DAY_LABELS[i]}
+                </span>
+                <span className={`text-sm font-bold ${isSelected ? 'text-white' : isToday ? 'text-blue-600' : 'text-gray-700'}`}>
+                  {d.getDate()}
+                </span>
+                {isToday && (
+                  <span className={`w-1.5 h-1.5 rounded-full absolute bottom-1 ${isSelected ? 'bg-blue-200' : 'bg-blue-500'}`} />
+                )}
+              </button>
+            )
+          })}
+        </div>
+
+        <button onClick={onNextWeek} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 transition shrink-0">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+          </svg>
+        </button>
+
+        {/* Calendar icon button */}
+        <button
+          onClick={() => setShowCalendar(v => !v)}
+          className={`p-1.5 rounded-lg transition shrink-0 ${showCalendar ? 'bg-blue-100 text-blue-600' : 'hover:bg-gray-100 text-gray-400'}`}
+          title="Open calendar"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+          </svg>
+        </button>
       </div>
 
-      <button onClick={onNextWeek} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 transition shrink-0">
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-        </svg>
-      </button>
+      {showCalendar && (
+        <CalendarPicker
+          selectedDate={selectedDate}
+          onSelectDate={d => { onSelectDate(d); setShowCalendar(false) }}
+          onClose={() => setShowCalendar(false)}
+          calendarApiBase={calendarApiBase}
+        />
+      )}
     </div>
   )
 }
 
 // ---- Visit Card ----
-function VisitCard({ visit, onStart, onStop, onDelete, onOrderEntry, onRemarks }: {
+function VisitCard({ visit, onStart, onStop, onDelete, onOrderEntry, onRemarks, onNotesUpdate }: {
   visit: Visit
   onStart: (id: string) => void
   onStop: (id: string) => void
   onDelete: (id: string) => void
   onOrderEntry: (visit: Visit) => void
   onRemarks: (visit: Visit) => void
+  onNotesUpdate: (id: string, notes: string) => Promise<void>
 }) {
   const [elapsed, setElapsed] = useState(0)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const [notesOpen, setNotesOpen] = useState(false)
+  const [notesText, setNotesText] = useState(visit.notes ?? '')
+  const [notesSaving, setNotesSaving] = useState(false)
 
   useEffect(() => {
     if (visit.status === 'Active' && visit.start_time) {
@@ -242,6 +272,15 @@ function VisitCard({ visit, onStart, onStop, onDelete, onOrderEntry, onRemarks }
               Order Entry
             </button>
           )}
+          {visit.status === 'Completed' && (
+            <button onClick={() => setNotesOpen(o => !o)}
+              className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition ${notesOpen ? 'bg-amber-50 text-amber-700' : 'text-gray-500 hover:text-amber-700 hover:bg-amber-50'}`}>
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+              </svg>
+              Notes{visit.notes ? ' ✓' : ''}
+            </button>
+          )}
           {visit.status === 'Pending' && (
             <button onClick={() => onDelete(visit.id)}
               className="text-xs text-gray-400 hover:text-red-500 transition ml-auto">
@@ -254,6 +293,33 @@ function VisitCard({ visit, onStart, onStop, onDelete, onOrderEntry, onRemarks }
             </svg>
           </button>
         </div>
+
+        {/* Meeting Notes expandable section */}
+        {visit.status === 'Completed' && notesOpen && (
+          <div className="mt-3 pt-3 border-t border-gray-100">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Meeting Notes</p>
+            <textarea
+              rows={4}
+              value={notesText}
+              onChange={e => setNotesText(e.target.value)}
+              placeholder="Add structured notes about this meeting…"
+              className="w-full text-sm text-gray-800 border border-gray-200 rounded-xl px-3 py-2.5 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-300"
+            />
+            <div className="flex justify-end mt-2">
+              <button
+                onClick={async () => {
+                  setNotesSaving(true)
+                  await onNotesUpdate(visit.id, notesText)
+                  setNotesSaving(false)
+                  setNotesOpen(false)
+                }}
+                disabled={notesSaving}
+                className="text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 rounded-lg transition disabled:opacity-60">
+                {notesSaving ? 'Saving…' : 'Save Notes'}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
@@ -950,6 +1016,18 @@ function DailyActivityInner() {
     if (!r.ok) { toast((await r.json()).error, 'error') } else { loadVisits() }
   }
 
+  async function handleNotesUpdate(id: string, notes: string) {
+    const r = await fetch(`/api/daily-activity/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'update_notes', notes }),
+    })
+    if (r.ok) {
+      const updated = await r.json()
+      setVisits(prev => prev.map(v => v.id === id ? { ...v, notes: updated.notes } : v))
+    }
+  }
+
   function handleOpenMeetingRemarks(visit: Visit) {
     setRemarksPanel({ contextType: 'meeting', contextId: visit.id, title: visit.entity_name })
   }
@@ -985,6 +1063,7 @@ function DailyActivityInner() {
         onSelectDate={handleSelectDate}
         onPrevWeek={handlePrevWeek}
         onNextWeek={handleNextWeek}
+        calendarApiBase="/api/daily-activity/calendar"
       />
 
       {/* Tabs */}
@@ -1032,7 +1111,8 @@ function DailyActivityInner() {
                   <VisitCard key={visit.id} visit={visit}
                     onStart={handleStart} onStop={handleStop} onDelete={handleDelete}
                     onOrderEntry={setOrderEntry}
-                    onRemarks={handleOpenMeetingRemarks} />
+                    onRemarks={handleOpenMeetingRemarks}
+                    onNotesUpdate={handleNotesUpdate} />
                 ))}
               </div>
             </>

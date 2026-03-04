@@ -48,5 +48,15 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     return NextResponse.json({ ok: true })
   }
 
+  if (action === 'update_notes') {
+    const { data, error } = await supabase
+      .from('daily_visits')
+      .update({ notes: body.notes ?? null })
+      .eq('id', params.id).eq('tenant_id', getTenantId())
+      .select().single()
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json(data)
+  }
+
   return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
 }

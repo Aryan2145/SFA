@@ -25,18 +25,42 @@ export async function PUT(req: NextRequest, { params }: { params: { userId: stri
   const supabase = createServerSupabase()
   const tid = getTenantId()
 
-  const { data, error } = await supabase
+  // Check if a mapping already exists for this user
+  const { data: existing } = await supabase
     .from('user_territory_mappings')
-    .upsert({
-      tenant_id: tid,
-      user_id: params.userId,
-      state_ids: state_ids ?? [],
-      district_ids: district_ids ?? [],
-      taluka_ids: taluka_ids ?? [],
-      village_ids: village_ids ?? [],
-    }, { onConflict: 'tenant_id,user_id' })
-    .select().single()
+    .select('id')
+    .eq('user_id', params.userId)
+    .eq('tenant_id', tid)
+    .maybeSingle()
+
+  let error
+  if (existing) {
+    // Update existing record
+    const res = await supabase
+      .from('user_territory_mappings')
+      .update({
+        state_ids: state_ids ?? [],
+        district_ids: district_ids ?? [],
+        taluka_ids: taluka_ids ?? [],
+        village_ids: village_ids ?? [],
+      })
+      .eq('id', existing.id)
+    error = res.error
+  } else {
+    // Insert new record
+    const res = await supabase
+      .from('user_territory_mappings')
+      .insert({
+        tenant_id: tid,
+        user_id: params.userId,
+        state_ids: state_ids ?? [],
+        district_ids: district_ids ?? [],
+        taluka_ids: taluka_ids ?? [],
+        village_ids: village_ids ?? [],
+      })
+    error = res.error
+  }
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json(data)
+  return NextResponse.json({ ok: true })
 }

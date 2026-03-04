@@ -34,6 +34,12 @@ export default function ReviewPage() {
 
   useEffect(() => { load() }, [load])
 
+  // Re-fetch when user returns to the tab (handles manager/level changes)
+  useEffect(() => {
+    window.addEventListener('focus', load)
+    return () => window.removeEventListener('focus', load)
+  }, [load])
+
   async function handleApprove(planId: string, userId: string) {
     setActing(planId)
     const r = await fetch(`/api/weekly-plans/${planId}/approve`, { method: 'POST' })
