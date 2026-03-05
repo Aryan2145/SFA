@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import StatusBadge from '@/components/ui/StatusBadge'
 import { useToast } from '@/contexts/ToastContext'
+import RemarksPanel from '@/components/ui/RemarksPanel'
 
 // ---- helpers ----
 function getMondayOf(date: Date): Date {
@@ -68,19 +69,19 @@ function planItemsToDayData(items: Plan['weekly_plan_items'], weekDays: string[]
 }
 
 function dayDataToPlanItems(dayData: DayData) {
-  const items: { plan_date: string; from_place: string; to_place: string; new_dealers_goal: number; existing_dealers_goal: number; mode_of_travel: string; notes: string }[] = []
+  const items: { plan_date: string; from_place: string; to_place: string | null; new_dealers_goal: number; existing_dealers_goal: number; mode_of_travel: string | null; notes: string }[] = []
   for (const [date, entries] of Object.entries(dayData)) {
     if (entries.length === 0) {
-      items.push({ plan_date: date, from_place: '', to_place: '', new_dealers_goal: 0, existing_dealers_goal: 0, mode_of_travel: '', notes: '' })
+      items.push({ plan_date: date, from_place: '', to_place: null, new_dealers_goal: 0, existing_dealers_goal: 0, mode_of_travel: null, notes: '' })
     } else {
       for (const entry of entries) {
         items.push({
           plan_date: date,
           from_place: entry.place,
-          to_place: '',
+          to_place: null,
           new_dealers_goal: entry.dealer,
           existing_dealers_goal: entry.dist,
-          mode_of_travel: '',
+          mode_of_travel: null,
           notes: entry.others > 0 ? String(entry.others) : '',
         })
       }
@@ -99,6 +100,7 @@ function MyPlanTab({ userId }: { userId: string | null }) {
   const [saving, setSaving] = useState(false)
   const [logs, setLogs] = useState<LogEntry[]>([])
   const [logsOpen, setLogsOpen] = useState(false)
+  const [remarksOpen, setRemarksOpen] = useState(false)
   const [villages, setVillages] = useState<{ id: string; label: string; name: string }[]>([])
 
   const weekStart = toDateStr(monday)
@@ -136,37 +138,47 @@ function MyPlanTab({ userId }: { userId: string | null }) {
     setLogsOpen(true)
   }
 
-  async function handleCreate() {
-    setSaving(true)
-    const items = dayDataToPlanItems(dayData)
-    const r = await fetch('/api/weekly-plans', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ week_start_date: weekStart, week_end_date: weekEnd, items })
-    })
-    if (!r.ok) { toast((await r.json()).error, 'error') } else { toast('Draft created'); loadPlan() }
-    setSaving(false)
-  }
-
   async function handleSaveDraft() {
-    if (!plan) return
     setSaving(true)
     const items = dayDataToPlanItems(dayData)
-    const r = await fetch(`/api/weekly-plans/${plan.id}`, {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ items })
-    })
-    if (!r.ok) { toast((await r.json()).error, 'error') } else { toast('Saved'); loadPlan() }
+    if (!plan) {
+      const r = await fetch('/api/weekly-plans', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ week_start_date: weekStart, week_end_date: weekEnd, items })
+      })
+      if (!r.ok) { toast((await r.json()).error, 'error') } else { toast('Draft created'); loadPlan() }
+    } else {
+      const r = await fetch(`/api/weekly-plans/${plan.id}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items })
+      })
+      if (!r.ok) { toast((await r.json()).error, 'error') } else { toast('Saved'); loadPlan() }
+    }
     setSaving(false)
   }
 
   async function handleSubmit() {
-    if (!plan) { await handleCreate(); return }
-    if (['Draft', 'Rejected', 'Edited by Manager'].includes(plan.status)) {
-      await handleSaveDraft()
-    }
     setSaving(true)
-    const r = await fetch(`/api/weekly-plans/${plan.id}/submit`, { method: 'POST' })
-    if (!r.ok) { toast((await r.json()).error, 'error') } else { toast('Submitted!'); loadPlan() }
+    const items = dayDataToPlanItems(dayData)
+    // Step 1: ensure plan exists and items are saved
+    let planId = plan?.id ?? null
+    if (!plan) {
+      const r = await fetch('/api/weekly-plans', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ week_start_date: weekStart, week_end_date: weekEnd, items })
+      })
+      if (!r.ok) { toast((await r.json()).error, 'error'); setSaving(false); return }
+      planId = (await r.json()).id
+    } else if (['Draft', 'Rejected', 'Edited by Manager'].includes(plan.status)) {
+      const r = await fetch(`/api/weekly-plans/${plan.id}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items })
+      })
+      if (!r.ok) { toast((await r.json()).error, 'error'); setSaving(false); return }
+    }
+    // Step 2: submit
+    const r = await fetch(`/api/weekly-plans/${planId}/submit`, { method: 'POST' })
+    if (!r.ok) { toast((await r.json()).error, 'error') } else { toast('Submitted for review!'); loadPlan() }
     setSaving(false)
   }
 
@@ -211,7 +223,18 @@ function MyPlanTab({ userId }: { userId: string | null }) {
         </svg>
         <h2 className="text-xl font-bold text-gray-900">Weekly Plan</h2>
         {plan && <StatusBadge status={plan.status} />}
-        {plan && <button onClick={loadLogs} className="text-xs text-blue-600 hover:underline ml-auto">Audit Log</button>}
+        {plan && (
+          <div className="flex items-center gap-3 ml-auto">
+            <button onClick={() => setRemarksOpen(true)}
+              className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 font-medium">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z" />
+              </svg>
+              Chat
+            </button>
+            <button onClick={loadLogs} className="text-xs text-gray-500 hover:underline">Audit Log</button>
+          </div>
+        )}
       </div>
 
       {/* Week navigator */}
@@ -368,7 +391,7 @@ function MyPlanTab({ userId }: { userId: string | null }) {
             <div className="flex-1" />
             {canEdit && (
               <>
-                <button onClick={plan ? handleSaveDraft : handleCreate} disabled={saving}
+                <button onClick={handleSaveDraft} disabled={saving}
                   className="flex items-center justify-center gap-2 px-8 py-3 border border-gray-300 rounded-xl text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition min-w-[180px]">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
@@ -413,6 +436,17 @@ function MyPlanTab({ userId }: { userId: string | null }) {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Remarks / Chat Panel */}
+      {plan && (
+        <RemarksPanel
+          isOpen={remarksOpen}
+          onClose={() => setRemarksOpen(false)}
+          contextType="weekly_plan"
+          contextId={plan.id}
+          contextTitle={`Weekly Plan — ${formatWeekRange(monday)}`}
+        />
       )}
     </div>
   )

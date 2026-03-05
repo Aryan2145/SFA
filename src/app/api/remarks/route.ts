@@ -130,6 +130,25 @@ export async function POST(req: NextRequest) {
           }
         }
       }
+    } else if (context_type === 'weekly_plan') {
+      // context_id is the weekly_plan.id
+      const { data: plan } = await supabase.from('weekly_plans').select('user_id, week_start_date').eq('id', context_id).single()
+      if (plan && plan.user_id !== user.userId) {
+        // Manager commenting on subordinate's plan → notify subordinate
+        recipientId = plan.user_id
+        redirectPath = `/weekly-plan`
+        section = 'weekly_plan'
+        message = `New remark on your weekly plan from ${user.name}`
+      } else if (plan && plan.user_id === user.userId) {
+        // Subordinate commenting → notify manager
+        const { data: me } = await supabase.from('users').select('manager_user_id').eq('id', user.userId).single()
+        if (me?.manager_user_id) {
+          recipientId = me.manager_user_id
+          redirectPath = `/review/${user.userId}?tab=plans`
+          section = 'weekly_plan'
+          message = `${user.name} added a remark on their weekly plan`
+        }
+      }
     }
 
     if (recipientId) {

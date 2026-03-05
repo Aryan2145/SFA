@@ -63,7 +63,7 @@ type Expense = {
   id: string; category: string; amount: number; notes: string | null; expense_date: string
 }
 
-type RemarksState = { contextType: 'meeting' | 'expense'; contextId: string; title: string } | null
+type RemarksState = { contextType: 'meeting' | 'expense' | 'weekly_plan'; contextId: string; title: string } | null
 
 const CATEGORY_COLORS: Record<string, string> = {
   Travel: 'bg-blue-100 text-blue-700', Food: 'bg-orange-100 text-orange-700',
@@ -125,7 +125,7 @@ function WeekStrip({ selectedDate, onSelectDate, onPrevWeek, onNextWeek, calenda
 }
 
 // ---- Weekly Plans Tab ----
-function WeeklyPlansTab({ userId }: { userId: string }) {
+function WeeklyPlansTab({ userId, onOpenRemarks }: { userId: string; onOpenRemarks: (ctx: { contextType: 'weekly_plan'; contextId: string; title: string }) => void }) {
   const { toast } = useToast()
   const [plans, setPlans] = useState<Plan[]>([])
   const [loading, setLoading] = useState(true)
@@ -220,7 +220,18 @@ function WeeklyPlansTab({ userId }: { userId: string }) {
                 <h3 className="font-semibold text-gray-800">Week of {selected.week_start_date}</h3>
                 <div className="flex items-center gap-2 mt-1"><StatusBadge status={selected.status} /></div>
               </div>
-              <button onClick={() => setSelected(null)} className="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => { setSelected(null); onOpenRemarks({ contextType: 'weekly_plan', contextId: selected.id, title: `Weekly Plan — Week of ${selected.week_start_date}` }) }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z" />
+                  </svg>
+                  Chat
+                </button>
+                <button onClick={() => setSelected(null)} className="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
+              </div>
             </div>
             {selected.manager_comment && (
               <div className="mx-6 mt-4 bg-yellow-50 border border-yellow-200 rounded-lg px-3 py-2 text-sm text-yellow-800">
@@ -480,7 +491,7 @@ function ReviewUserInner() {
 
       {meLoaded && (
         <>
-          {tab === 'plans' && <WeeklyPlansTab userId={userId} />}
+          {tab === 'plans' && <WeeklyPlansTab userId={userId} onOpenRemarks={setRemarksPanel} />}
           {tab === 'activity' && <DailyActivityTab userId={userId} onOpenRemarks={setRemarksPanel} />}
           {tab === 'expenses' && <ExpensesTab userId={userId} onOpenRemarks={setRemarksPanel} />}
         </>

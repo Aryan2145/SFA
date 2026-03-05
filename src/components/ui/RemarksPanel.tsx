@@ -18,7 +18,7 @@ type Remark = {
 interface RemarksPanelProps {
   isOpen: boolean
   onClose: () => void
-  contextType: 'meeting' | 'expense' | 'weekly_plan_day'
+  contextType: 'meeting' | 'expense' | 'weekly_plan_day' | 'weekly_plan'
   contextId: string
   contextTitle: string
 }
