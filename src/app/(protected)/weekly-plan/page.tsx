@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import StatusBadge from '@/components/ui/StatusBadge'
 import { useToast } from '@/contexts/ToastContext'
 import RemarksPanel from '@/components/ui/RemarksPanel'
@@ -38,11 +38,18 @@ function formatWeekRange(monday: Date) {
   return `${fmt(monday)} to ${fmt(sun)}`
 }
 
+function formatCountdown(secs: number) {
+  const m = Math.floor(secs / 60)
+  const s = secs % 60
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+}
+
 type PlaceEntry = { id: string; place: string; dist: number; dealer: number; others: number }
 type DayData = { [dateStr: string]: PlaceEntry[] }
 
 type Plan = {
-  id: string; status: string; submitted_at: string | null; manager_comment: string | null;
+  id: string; status: string; submitted_at: string | null; manager_comment: string | null
+  reopen_requested: boolean; reopen_request_message: string | null
   weekly_plan_items: { plan_date: string; from_place: string; to_place: string; new_dealers_goal: number; existing_dealers_goal: number; mode_of_travel: string; notes: string }[]
   week_start_date: string; week_end_date: string
 }
@@ -68,26 +75,79 @@ function planItemsToDayData(items: Plan['weekly_plan_items'], weekDays: string[]
   return dd
 }
 
+// Item 9: skip blank rows — never store empty place entries
 function dayDataToPlanItems(dayData: DayData) {
   const items: { plan_date: string; from_place: string; to_place: string | null; new_dealers_goal: number; existing_dealers_goal: number; mode_of_travel: string | null; notes: string }[] = []
   for (const [date, entries] of Object.entries(dayData)) {
-    if (entries.length === 0) {
-      items.push({ plan_date: date, from_place: '', to_place: null, new_dealers_goal: 0, existing_dealers_goal: 0, mode_of_travel: null, notes: '' })
-    } else {
-      for (const entry of entries) {
-        items.push({
-          plan_date: date,
-          from_place: entry.place,
-          to_place: null,
-          new_dealers_goal: entry.dealer,
-          existing_dealers_goal: entry.dist,
-          mode_of_travel: null,
-          notes: entry.others > 0 ? String(entry.others) : '',
-        })
-      }
+    for (const entry of entries) {
+      if (!entry.place.trim()) continue
+      items.push({
+        plan_date: date,
+        from_place: entry.place,
+        to_place: null,
+        new_dealers_goal: entry.dealer,
+        existing_dealers_goal: entry.dist,
+        mode_of_travel: null,
+        notes: entry.others > 0 ? String(entry.others) : '',
+      })
     }
   }
   return items
+}
+
+// ---- Item 2: Searchable Place Combobox ----
+function PlaceCombobox({ value, onChange, options, disabled }: {
+  value: string; onChange: (v: string) => void
+  options: { id: string; label: string }[]; disabled: boolean
+}) {
+  const [query, setQuery] = useState(value)
+  const [open, setOpen] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => { setQuery(value) }, [value])
+
+  useEffect(() => {
+    function onMouseDown(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false)
+        setQuery(value)
+      }
+    }
+    document.addEventListener('mousedown', onMouseDown)
+    return () => document.removeEventListener('mousedown', onMouseDown)
+  }, [value])
+
+  const filtered = query.trim()
+    ? options.filter(o => o.label.toLowerCase().includes(query.toLowerCase()))
+    : options
+
+  return (
+    <div ref={containerRef} className="relative flex-1">
+      <input
+        type="text" disabled={disabled} value={query}
+        onChange={e => { setQuery(e.target.value); setOpen(true) }}
+        onFocus={() => setOpen(true)}
+        placeholder="Search place…"
+        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-500"
+      />
+      {!disabled && open && (
+        <div className="absolute z-20 left-0 right-0 top-full mt-0.5 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+          {filtered.length === 0 ? (
+            <p className="px-3 py-2 text-sm text-gray-400">No places found</p>
+          ) : (
+            filtered.map(o => (
+              <button key={o.id} type="button"
+                onMouseDown={e => e.preventDefault()}
+                onClick={() => { onChange(o.label); setQuery(o.label); setOpen(false) }}
+                className={`w-full text-left px-3 py-2 text-sm hover:bg-blue-50 transition ${o.label === value ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700'}`}>
+                {o.label}
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  )
 }
 
 // ---- My Plan Tab ----
@@ -102,24 +162,33 @@ function MyPlanTab({ userId }: { userId: string | null }) {
   const [logsOpen, setLogsOpen] = useState(false)
   const [remarksOpen, setRemarksOpen] = useState(false)
   const [villages, setVillages] = useState<{ id: string; label: string; name: string }[]>([])
+  const [undoSecondsLeft, setUndoSecondsLeft] = useState(0)
+  const [reopenModal, setReopenModal] = useState(false)
+  const [reopenMessage, setReopenMessage] = useState('')
+  const [reopening, setReopening] = useState(false)
+  // Item 10: in-memory week cache
+  const weekCache = useRef<Map<string, DayData>>(new Map())
 
   const weekStart = toDateStr(monday)
   const weekEnd = toDateStr(addDays(monday, 6))
   const weekDays = buildWeekDays(monday)
 
-  // Load territory-based places for dropdown
   useEffect(() => {
     fetch('/api/masters/territory-mapping/places').then(r => r.json()).then(d => {
       if (Array.isArray(d)) setVillages(d)
     }).catch(() => {})
   }, [])
 
-  const loadPlan = useCallback(async () => {
+  const loadPlan = useCallback(async (clearCache = false) => {
+    if (clearCache) weekCache.current.delete(weekStart)
     setLoading(true)
     const r = await fetch(`/api/weekly-plans/my?weekStart=${weekStart}`)
     const data = await r.json()
     setPlan(data)
-    if (data && data.weekly_plan_items) {
+    const cached = weekCache.current.get(weekStart)
+    if (cached && !clearCache) {
+      setDayData(cached)
+    } else if (data && data.weekly_plan_items) {
       setDayData(planItemsToDayData(data.weekly_plan_items, weekDays))
     } else {
       const empty: DayData = {}
@@ -127,9 +196,30 @@ function MyPlanTab({ userId }: { userId: string | null }) {
       setDayData(empty)
     }
     setLoading(false)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [weekStart])
 
   useEffect(() => { loadPlan() }, [loadPlan])
+
+  // Undo countdown — Items 5 & 6
+  useEffect(() => {
+    if (!plan || !plan.submitted_at || !['Submitted', 'Resubmitted'].includes(plan.status)) {
+      setUndoSecondsLeft(0)
+      return
+    }
+    const submittedAt = new Date(plan.submitted_at).getTime()
+    const WINDOW = 15 * 60 * 1000
+    function calcRemaining() {
+      return Math.max(0, Math.floor((submittedAt + WINDOW - Date.now()) / 1000))
+    }
+    setUndoSecondsLeft(calcRemaining())
+    const interval = setInterval(() => {
+      const rem = calcRemaining()
+      setUndoSecondsLeft(rem)
+      if (rem === 0) clearInterval(interval)
+    }, 1000)
+    return () => clearInterval(interval)
+  }, [plan])
 
   async function loadLogs() {
     if (!plan) return
@@ -146,21 +236,25 @@ function MyPlanTab({ userId }: { userId: string | null }) {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ week_start_date: weekStart, week_end_date: weekEnd, items })
       })
-      if (!r.ok) { toast((await r.json()).error, 'error') } else { toast('Draft created'); loadPlan() }
+      if (!r.ok) { toast((await r.json()).error, 'error') } else { toast('Draft created'); loadPlan(true) }
     } else {
       const r = await fetch(`/api/weekly-plans/${plan.id}`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ items })
       })
-      if (!r.ok) { toast((await r.json()).error, 'error') } else { toast('Saved'); loadPlan() }
+      if (!r.ok) { toast((await r.json()).error, 'error') } else { toast('Saved'); loadPlan(true) }
     }
     setSaving(false)
   }
 
   async function handleSubmit() {
-    setSaving(true)
     const items = dayDataToPlanItems(dayData)
-    // Step 1: ensure plan exists and items are saved
+    // Item 4: block empty week submission
+    if (items.length === 0) {
+      toast('Please add at least one place before submitting', 'error')
+      return
+    }
+    setSaving(true)
     let planId = plan?.id ?? null
     if (!plan) {
       const r = await fetch('/api/weekly-plans', {
@@ -176,13 +270,40 @@ function MyPlanTab({ userId }: { userId: string | null }) {
       })
       if (!r.ok) { toast((await r.json()).error, 'error'); setSaving(false); return }
     }
-    // Step 2: submit
     const r = await fetch(`/api/weekly-plans/${planId}/submit`, { method: 'POST' })
-    if (!r.ok) { toast((await r.json()).error, 'error') } else { toast('Submitted for review!'); loadPlan() }
+    if (!r.ok) { toast((await r.json()).error, 'error') } else { toast('Submitted for review!'); loadPlan(true) }
     setSaving(false)
   }
 
+  // Item 5 & 6: undo submit
+  async function handleUndo() {
+    if (!plan) return
+    setSaving(true)
+    const r = await fetch(`/api/weekly-plans/${plan.id}/undo-submit`, { method: 'POST' })
+    if (!r.ok) { toast((await r.json()).error, 'error') } else { toast('Submit undone — plan is editable again'); loadPlan(true) }
+    setSaving(false)
+  }
+
+  // Item 7: request reopen
+  async function handleRequestReopen() {
+    if (!plan || !reopenMessage.trim()) return
+    setReopening(true)
+    const r = await fetch(`/api/weekly-plans/${plan.id}/request-reopen`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: reopenMessage.trim() })
+    })
+    if (!r.ok) { toast((await r.json()).error, 'error') } else {
+      toast('Reopen request sent to manager')
+      setReopenModal(false)
+      setReopenMessage('')
+      loadPlan(true)
+    }
+    setReopening(false)
+  }
+
   const canEdit = !plan || ['Draft', 'Rejected', 'Edited by Manager'].includes(plan.status)
+  const isSubmittedAwaitingReview = plan && ['Submitted', 'Resubmitted'].includes(plan.status)
+  const canRequestReopen = plan && !canEdit && !plan.reopen_requested && undoSecondsLeft === 0
 
   function canAddPlace(dateStr: string): boolean {
     const entries = dayData[dateStr] || []
@@ -205,11 +326,25 @@ function MyPlanTab({ userId }: { userId: string | null }) {
   }
 
   function updatePlace(dateStr: string, entryId: string, field: keyof PlaceEntry, value: string | number) {
+    // Item 1: duplicate place detection
+    if (field === 'place' && typeof value === 'string' && value.trim() !== '') {
+      const entries = dayData[dateStr] || []
+      if (entries.some(e => e.id !== entryId && e.place === value)) {
+        toast(`${value} is already added for this day`, 'error')
+        return
+      }
+    }
     const clamped = (field === 'dist' || field === 'dealer' || field === 'others') ? Math.max(0, Number(value) || 0) : value
     setDayData(prev => ({
       ...prev,
       [dateStr]: (prev[dateStr] || []).map(e => e.id === entryId ? { ...e, [field]: clamped } : e)
     }))
+  }
+
+  // Item 10: save to cache before navigating
+  function navigateWeek(delta: number) {
+    weekCache.current.set(weekStart, dayData)
+    setMonday(d => addDays(d, delta * 7))
   }
 
   if (!userId) return <div className="text-center py-12 text-gray-400">Please add yourself as a user in Masters first.</div>
@@ -239,27 +374,33 @@ function MyPlanTab({ userId }: { userId: string | null }) {
 
       {/* Week navigator */}
       <div className="flex items-center justify-between mb-6 px-2">
-        <button onClick={() => setMonday(d => addDays(d, -7))} className="p-2 rounded-lg hover:bg-gray-100 text-gray-500 transition">
+        <button onClick={() => navigateWeek(-1)} className="p-2 rounded-lg hover:bg-gray-100 text-gray-500 transition">
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
           </svg>
         </button>
         <span className="text-sm font-semibold text-gray-800">{formatWeekRange(monday)}</span>
-        <button onClick={() => setMonday(d => addDays(d, 7))} className="p-2 rounded-lg hover:bg-gray-100 text-gray-500 transition">
+        <button onClick={() => navigateWeek(1)} className="p-2 rounded-lg hover:bg-gray-100 text-gray-500 transition">
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
           </svg>
         </button>
       </div>
 
-      {/* Status banner for reviewed plans */}
+      {/* Status banners */}
       {plan && plan.status === 'Approved' && (
         <div className="mb-4 bg-green-50 border border-green-200 rounded-xl px-4 py-3">
-          <div className="flex items-center gap-2 text-sm font-semibold text-green-700">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-            Plan Approved
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-sm font-semibold text-green-700">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+              Plan Approved
+            </div>
+            {canRequestReopen && (
+              <button onClick={() => setReopenModal(true)} className="text-xs text-green-700 underline hover:text-green-800">Request Reopen</button>
+            )}
           </div>
           {plan.manager_comment && <p className="text-sm text-green-600 mt-1 ml-7">{plan.manager_comment}</p>}
+          {plan.reopen_requested && <p className="text-xs text-green-600 mt-1 ml-7 italic">Reopen request sent — awaiting manager response</p>}
         </div>
       )}
       {plan && plan.status === 'Rejected' && (
@@ -282,18 +423,40 @@ function MyPlanTab({ userId }: { userId: string | null }) {
       )}
       {plan && plan.status === 'On Hold' && (
         <div className="mb-4 bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3">
-          <div className="flex items-center gap-2 text-sm font-semibold text-yellow-700">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" /></svg>
-            Plan On Hold
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-sm font-semibold text-yellow-700">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" /></svg>
+              Plan On Hold
+            </div>
+            {canRequestReopen && (
+              <button onClick={() => setReopenModal(true)} className="text-xs text-yellow-700 underline hover:text-yellow-800">Request Reopen</button>
+            )}
           </div>
           {plan.manager_comment && <p className="text-sm text-yellow-600 mt-1 ml-7">{plan.manager_comment}</p>}
+          {plan.reopen_requested && <p className="text-xs text-yellow-600 mt-1 ml-7 italic">Reopen request sent — awaiting manager response</p>}
         </div>
       )}
-      {plan && (plan.status === 'Submitted' || plan.status === 'Resubmitted') && (
+      {isSubmittedAwaitingReview && (
         <div className="mb-4 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3">
-          <div className="flex items-center gap-2 text-sm font-semibold text-blue-700">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-            Awaiting manager review
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-sm font-semibold text-blue-700">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+              Awaiting manager review
+            </div>
+            {/* Item 5 & 6: undo button with countdown */}
+            {undoSecondsLeft > 0 ? (
+              <button onClick={handleUndo} disabled={saving}
+                className="flex items-center gap-1.5 text-xs font-medium text-blue-700 bg-blue-100 hover:bg-blue-200 px-3 py-1.5 rounded-lg transition disabled:opacity-50">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3" />
+                </svg>
+                Undo ({formatCountdown(undoSecondsLeft)})
+              </button>
+            ) : canRequestReopen ? (
+              <button onClick={() => setReopenModal(true)} className="text-xs text-blue-700 underline hover:text-blue-800">Request Reopen</button>
+            ) : plan?.reopen_requested ? (
+              <span className="text-xs text-blue-600 italic">Reopen request sent</span>
+            ) : null}
           </div>
         </div>
       )}
@@ -335,15 +498,13 @@ function MyPlanTab({ userId }: { userId: string | null }) {
                     ) : (
                       entries.map(entry => (
                         <div key={entry.id} className="flex items-center gap-2">
-                          <select
-                            disabled={!canEdit}
+                          {/* Item 2: PlaceCombobox replaces select */}
+                          <PlaceCombobox
                             value={entry.place}
-                            onChange={e => updatePlace(dateStr, entry.id, 'place', e.target.value)}
-                            className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50 disabled:text-gray-500 appearance-none"
-                          >
-                            <option value="">Select place…</option>
-                            {villages.map(v => <option key={v.id} value={v.label}>{v.label}</option>)}
-                          </select>
+                            onChange={v => updatePlace(dateStr, entry.id, 'place', v)}
+                            options={villages}
+                            disabled={!canEdit}
+                          />
                           <input type="number" min={0} disabled={!canEdit} value={entry.dist}
                             onChange={e => updatePlace(dateStr, entry.id, 'dist', Number(e.target.value))}
                             className="w-[72px] border border-gray-200 rounded-lg px-2 py-2 text-sm text-center focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50" />
@@ -433,6 +594,33 @@ function MyPlanTab({ userId }: { userId: string | null }) {
                 </div>
               ))}
               {logs.length === 0 && <p className="text-gray-400 text-sm">No log entries yet.</p>}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Item 7: Request Reopen Modal */}
+      {reopenModal && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => { setReopenModal(false); setReopenMessage('') }} />
+          <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+            <h3 className="font-semibold text-gray-800 mb-1">Request Plan Reopen</h3>
+            <p className="text-xs text-gray-500 mb-4">Explain why you need to edit this plan. Your manager will be notified.</p>
+            <textarea
+              value={reopenMessage}
+              onChange={e => setReopenMessage(e.target.value)}
+              rows={4} placeholder="Reason for reopen request…"
+              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4"
+            />
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => { setReopenModal(false); setReopenMessage('') }}
+                className="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition">
+                Cancel
+              </button>
+              <button onClick={handleRequestReopen} disabled={reopening || !reopenMessage.trim()}
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg disabled:opacity-50 transition">
+                {reopening ? 'Sending…' : 'Send Request'}
+              </button>
             </div>
           </div>
         </div>

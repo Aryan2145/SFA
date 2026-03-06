@@ -48,7 +48,8 @@ const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
 // ---- Types ----
 type Plan = {
-  id: string; status: string; submitted_at: string | null; manager_comment: string | null;
+  id: string; status: string; submitted_at: string | null; manager_comment: string | null
+  reopen_requested: boolean; reopen_request_message: string | null
   week_start_date: string; week_end_date: string;
   weekly_plan_items: { plan_date: string; from_place: string; existing_dealers_goal: number; new_dealers_goal: number; notes: string }[]
   users: { id: string; name: string; contact: string }
@@ -198,7 +199,14 @@ function WeeklyPlansTab({ userId, onOpenRemarks }: { userId: string; onOpenRemar
               {plans.map(p => (
                 <tr key={p.id} className="border-t border-gray-50 hover:bg-gray-50">
                   <td className="px-4 py-3 text-xs text-gray-600">{formatWeekRange(new Date(p.week_start_date + 'T00:00:00'))}</td>
-                  <td className="px-4 py-3"><StatusBadge status={p.status} /></td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-1.5">
+                      <StatusBadge status={p.status} />
+                      {p.reopen_requested && (
+                        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700">Reopen Req.</span>
+                      )}
+                    </div>
+                  </td>
                   <td className="px-4 py-3 text-xs text-gray-500">{p.submitted_at ? new Date(p.submitted_at).toLocaleString('en-IN') : '—'}</td>
                   <td className="px-4 py-3 text-right">
                     <button onClick={() => setSelected(p)} className="text-blue-600 hover:underline text-xs font-medium">View</button>
@@ -260,6 +268,25 @@ function WeeklyPlansTab({ userId, onOpenRemarks }: { userId: string; onOpenRemar
                 <button disabled={acting} onClick={() => { setCommentModal({ action: 'reject', planId: selected.id }); setComment('') }} className="bg-red-600 hover:bg-red-700 text-white text-xs font-medium px-3 py-1.5 rounded-lg disabled:opacity-50">Reject</button>
                 <button disabled={acting} onClick={() => { setCommentModal({ action: 'hold', planId: selected.id }); setComment('') }} className="bg-yellow-500 hover:bg-yellow-600 text-white text-xs font-medium px-3 py-1.5 rounded-lg disabled:opacity-50">Hold</button>
                 <button disabled={acting} onClick={() => { setCommentModal({ action: 'suggest', planId: selected.id }); setComment('') }} className="bg-purple-600 hover:bg-purple-700 text-white text-xs font-medium px-3 py-1.5 rounded-lg disabled:opacity-50">Suggest Changes</button>
+              </div>
+            )}
+            {/* Item 8: Accept / Decline reopen request */}
+            {selected.reopen_requested && (
+              <div className="px-6 py-4 border-t bg-orange-50">
+                <p className="text-xs font-semibold text-orange-700 mb-1">Reopen Request</p>
+                {selected.reopen_request_message && (
+                  <p className="text-xs text-orange-600 mb-3 bg-white rounded-lg px-3 py-2 border border-orange-200">{selected.reopen_request_message}</p>
+                )}
+                <div className="flex gap-2">
+                  <button disabled={acting} onClick={() => action(selected.id, 'accept-reopen')}
+                    className="bg-green-600 hover:bg-green-700 text-white text-xs font-medium px-3 py-1.5 rounded-lg disabled:opacity-50">
+                    Accept (Allow Edit)
+                  </button>
+                  <button disabled={acting} onClick={() => action(selected.id, 'decline-reopen')}
+                    className="bg-red-600 hover:bg-red-700 text-white text-xs font-medium px-3 py-1.5 rounded-lg disabled:opacity-50">
+                    Decline
+                  </button>
+                </div>
               </div>
             )}
           </div>
