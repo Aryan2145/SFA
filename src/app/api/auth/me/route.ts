@@ -9,9 +9,9 @@ export async function GET() {
 
   const supabase = createServerSupabase()
   const { count } = await supabase
-    .from('users')
+    .from('user_visibility')
     .select('id', { count: 'exact', head: true })
-    .eq('manager_user_id', user.userId)
+    .eq('viewer_user_id', user.userId)
 
   return NextResponse.json({ ...user, hasSubordinates: (count ?? 0) > 0 })
 }

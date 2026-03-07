@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabase } from '@/lib/supabase-server'
 import { getTenantId } from '@/lib/tenant'
 import { requireUser } from '@/lib/auth'
+import { getVisibleUserIds } from '@/lib/visibility'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,18 +29,20 @@ export async function GET(req: NextRequest) {
   })()
   const weekEnd = addDays(weekStart, 6)
 
-  // Get direct subordinates
+  const subIds = await getVisibleUserIds(user.userId!, supabase, tid)
+  if (!subIds.length) return NextResponse.json({ isManager: false })
+
   const { data: subordinates } = await supabase
     .from('users')
-    .select('id, name, manager_user_id, level_id, levels(name)')
+    .select('id, name, level_id, levels(name)')
+    .in('id', subIds)
     .eq('tenant_id', tid)
-    .eq('manager_user_id', user.userId)
 
   if (!subordinates || subordinates.length === 0) {
     return NextResponse.json({ isManager: false })
   }
 
-  const subIds = subordinates.map(s => s.id)
+  const activeSubIds = subordinates.map(s => s.id)
 
   // Parallel data fetch for the week
   const [plansRes, visitsRes, ordersRes, expensesRes] = await Promise.all([
@@ -48,13 +51,13 @@ export async function GET(req: NextRequest) {
       .select('id, user_id, status, submitted_at, reopen_requested, reopen_request_message, week_start_date')
       .eq('tenant_id', tid)
       .eq('week_start_date', weekStart)
-      .in('user_id', subIds),
+      .in('user_id', activeSubIds),
 
     supabase
       .from('daily_visits')
       .select('id, user_id, status, visit_date')
       .eq('tenant_id', tid)
-      .in('user_id', subIds)
+      .in('user_id', activeSubIds)
       .gte('visit_date', weekStart)
       .lte('visit_date', weekEnd),
 
@@ -62,7 +65,7 @@ export async function GET(req: NextRequest) {
       .from('orders')
       .select('user_id, order_date, total_amount, status')
       .eq('tenant_id', tid)
-      .in('user_id', subIds)
+      .in('user_id', activeSubIds)
       .gte('order_date', weekStart)
       .lte('order_date', weekEnd),
 
@@ -70,7 +73,7 @@ export async function GET(req: NextRequest) {
       .from('expenses')
       .select('user_id, expense_date, amount')
       .eq('tenant_id', tid)
-      .in('user_id', subIds)
+      .in('user_id', activeSubIds)
       .gte('expense_date', weekStart)
       .lte('expense_date', weekEnd),
   ])

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabase } from '@/lib/supabase-server'
 import { getTenantId } from '@/lib/tenant'
 import { requireUser } from '@/lib/auth'
+import { getVisibleUserIds } from '@/lib/visibility'
 
 export const dynamic = 'force-dynamic'
 
@@ -24,12 +25,14 @@ export async function GET(req: NextRequest) {
   const supabase = createServerSupabase()
   const tid = getTenantId()
 
-  // Get direct subordinates
+  const subIds = await getVisibleUserIds(user.userId, supabase, tid)
+  if (!subIds.length) return NextResponse.json({ weeks: [], subordinates: [] })
+
   const { data: subs } = await supabase
     .from('users')
     .select('id, name')
+    .in('id', subIds)
     .eq('tenant_id', tid)
-    .eq('manager_user_id', user.userId)
     .eq('status', 'Active')
     .order('name')
 
@@ -42,14 +45,14 @@ export async function GET(req: NextRequest) {
     weeks.push(toDateStr(addDays(currentMonday, -7 * i)))
   }
 
-  const subIds = subs.map(s => s.id)
+  const activeSubIds = subs.map(s => s.id)
 
   // Fetch all plans in the range for all subordinates
   const { data: plans } = await supabase
     .from('weekly_plans')
     .select('user_id, week_start_date, status, weekly_plan_items(plan_date, from_place)')
     .eq('tenant_id', tid)
-    .in('user_id', subIds)
+    .in('user_id', activeSubIds)
     .in('week_start_date', weeks)
 
   type CellData = { status: string | null; planned_days: number }

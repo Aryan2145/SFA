@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabase } from '@/lib/supabase-server'
 import { getTenantId } from '@/lib/tenant'
 import { requireUser } from '@/lib/auth'
+import { canView } from '@/lib/visibility'
 
 export const dynamic = 'force-dynamic'
 
@@ -51,6 +52,29 @@ export async function POST(req: NextRequest) {
 
   const tenantId = getTenantId()
   const supabase = createServerSupabase()
+
+  // Check visibility: if commenting on someone else's data, viewer must have access
+  let contextOwnerId: string | null = null
+  if (context_type === 'meeting') {
+    const { data: visit } = await supabase.from('daily_visits').select('user_id').eq('id', context_id).single()
+    contextOwnerId = visit?.user_id ?? null
+  } else if (context_type === 'expense') {
+    const { data: expense } = await supabase.from('expenses').select('user_id').eq('id', context_id).single()
+    contextOwnerId = expense?.user_id ?? null
+  } else if (context_type === 'weekly_plan_day') {
+    const { data: item } = await supabase.from('weekly_plan_items').select('weekly_plan_id').eq('id', context_id).single()
+    if (item) {
+      const { data: plan } = await supabase.from('weekly_plans').select('user_id').eq('id', item.weekly_plan_id).single()
+      contextOwnerId = plan?.user_id ?? null
+    }
+  } else if (context_type === 'weekly_plan') {
+    const { data: plan } = await supabase.from('weekly_plans').select('user_id').eq('id', context_id).single()
+    contextOwnerId = plan?.user_id ?? null
+  }
+  if (contextOwnerId && contextOwnerId !== user.userId) {
+    const allowed = await canView(user.userId!, contextOwnerId, supabase, tenantId)
+    if (!allowed) return NextResponse.json({ error: 'Not authorized' }, { status: 403 })
+  }
 
   const { data: remark, error } = await supabase
     .from('contextual_remarks')

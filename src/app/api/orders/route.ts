@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabase } from '@/lib/supabase-server'
 import { getTenantId } from '@/lib/tenant'
 import { requireUser } from '@/lib/auth'
+import { getVisibleUserIds } from '@/lib/visibility'
 
 export const dynamic = 'force-dynamic'
 
@@ -39,13 +40,9 @@ export async function GET(req: NextRequest) {
   const userId = req.nextUrl.searchParams.get('userId')
   const q = req.nextUrl.searchParams.get('q')
 
-  // Determine allowed user IDs (current user + direct reports)
-  const { data: reports } = await supabase
-    .from('users')
-    .select('id')
-    .eq('tenant_id', tid)
-    .eq('manager_user_id', user.userId!)
-  const allowedIds = [user.userId!, ...(reports ?? []).map((r: { id: string }) => r.id)]
+  // Determine allowed user IDs (current user + visible users)
+  const visibleIds = await getVisibleUserIds(user.userId!, supabase, tid)
+  const allowedIds = [user.userId!, ...visibleIds]
 
   let query = supabase
     .from('orders')

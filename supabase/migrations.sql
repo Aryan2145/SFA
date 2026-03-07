@@ -455,6 +455,31 @@ CREATE INDEX IF NOT EXISTS notifications_recipient ON notifications(tenant_id, r
 ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
 
 -- ================================================================
+-- O) USER VISIBILITY (configurable cross-team access)
+-- ================================================================
+-- Run this block ONCE after the initial schema is deployed.
+-- It is safe to re-run (IF NOT EXISTS + ON CONFLICT DO NOTHING).
+
+CREATE TABLE IF NOT EXISTS user_visibility (
+  id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  tenant_id       UUID NOT NULL,
+  viewer_user_id  UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  target_user_id  UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(viewer_user_id, target_user_id)
+);
+CREATE INDEX IF NOT EXISTS uv_viewer ON user_visibility(tenant_id, viewer_user_id);
+ALTER TABLE user_visibility ENABLE ROW LEVEL SECURITY;
+
+-- Seed from existing hierarchy (zero-disruption migration)
+-- Existing managers retain their current subordinate visibility.
+INSERT INTO user_visibility (tenant_id, viewer_user_id, target_user_id)
+SELECT tenant_id, manager_user_id, id
+FROM users
+WHERE manager_user_id IS NOT NULL
+ON CONFLICT DO NOTHING;
+
+-- ================================================================
 -- RLS POLICIES (Service Role bypasses RLS — anon gets nothing)
 -- ================================================================
 -- NOTE: All server-side operations use SUPABASE_SERVICE_ROLE_KEY which

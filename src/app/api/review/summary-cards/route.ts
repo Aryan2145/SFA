@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createServerSupabase } from '@/lib/supabase-server'
 import { getTenantId } from '@/lib/tenant'
 import { requireUser } from '@/lib/auth'
+import { getVisibleUserIds } from '@/lib/visibility'
 
 export const dynamic = 'force-dynamic'
 
@@ -11,17 +12,19 @@ export async function GET() {
   const tenantId = getTenantId()
   const today = new Date().toISOString().split('T')[0]
 
-  // Get direct subordinates
+  const subIds = await getVisibleUserIds(manager.userId!, supabase, tenantId)
+  if (subIds.length === 0) return NextResponse.json([])
+
   const { data: subs } = await supabase
     .from('users')
     .select('id, name, levels(name)')
-    .eq('manager_user_id', manager.userId)
+    .in('id', subIds)
     .eq('tenant_id', tenantId)
     .eq('status', 'Active')
 
   if (!subs || subs.length === 0) return NextResponse.json([])
 
-  const subIds = subs.map(s => s.id)
+  const activeSubIds = subs.map(s => s.id)
 
   // Current week range
   const now = new Date()
@@ -40,7 +43,7 @@ export async function GET() {
     .from('weekly_plans')
     .select('id, user_id, status')
     .eq('tenant_id', tenantId)
-    .in('user_id', subIds)
+    .in('user_id', activeSubIds)
     .eq('week_start_date', weekStart)
 
   // Get today's visit counts
@@ -48,7 +51,7 @@ export async function GET() {
     .from('daily_visits')
     .select('user_id, status')
     .eq('tenant_id', tenantId)
-    .in('user_id', subIds)
+    .in('user_id', activeSubIds)
     .eq('visit_date', today)
 
   // Get today's expense totals
@@ -56,7 +59,7 @@ export async function GET() {
     .from('expenses')
     .select('user_id, amount')
     .eq('tenant_id', tenantId)
-    .in('user_id', subIds)
+    .in('user_id', activeSubIds)
     .eq('expense_date', today)
 
   const planMap: Record<string, { id: string; status: string }> = {}

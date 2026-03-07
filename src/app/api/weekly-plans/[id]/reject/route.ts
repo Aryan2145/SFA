@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabase } from '@/lib/supabase-server'
 import { getTenantId } from '@/lib/tenant'
 import { requireUser } from '@/lib/auth'
+import { canView } from '@/lib/visibility'
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const user = await requireUser()
@@ -17,6 +18,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     .eq('id', params.id)
     .single()
   if (!plan) return NextResponse.json({ error: 'Plan not found' }, { status: 404 })
+
+  const authorized = await canView(user.userId!, plan.user_id, supabase, tid)
+  if (!authorized) return NextResponse.json({ error: 'Not authorized' }, { status: 403 })
 
   await supabase.from('weekly_plans').update({
     status: 'Rejected', manager_comment: comment, last_status_changed_at: now,

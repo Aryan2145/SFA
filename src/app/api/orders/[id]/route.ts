@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabase } from '@/lib/supabase-server'
 import { getTenantId } from '@/lib/tenant'
 import { requireUser } from '@/lib/auth'
+import { getVisibleUserIds } from '@/lib/visibility'
 
 export const dynamic = 'force-dynamic'
 
@@ -10,13 +11,8 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   const supabase = createServerSupabase()
   const tid = getTenantId()
 
-  // Get direct reports to determine scope
-  const { data: reports } = await supabase
-    .from('users')
-    .select('id')
-    .eq('tenant_id', tid)
-    .eq('manager_user_id', user.userId!)
-  const allowedIds = [user.userId!, ...(reports ?? []).map((r: { id: string }) => r.id)]
+  const visibleIds = await getVisibleUserIds(user.userId!, supabase, tid)
+  const allowedIds = [user.userId!, ...visibleIds]
 
   const { data: order, error } = await supabase
     .from('orders')
@@ -36,12 +32,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const supabase = createServerSupabase()
   const tid = getTenantId()
 
-  const { data: reports } = await supabase
-    .from('users')
-    .select('id')
-    .eq('tenant_id', tid)
-    .eq('manager_user_id', user.userId!)
-  const allowedIds = [user.userId!, ...(reports ?? []).map((r: { id: string }) => r.id)]
+  const visibleIds = await getVisibleUserIds(user.userId!, supabase, tid)
+  const allowedIds = [user.userId!, ...visibleIds]
 
   const { error } = await supabase
     .from('orders')

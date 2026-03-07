@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabase } from '@/lib/supabase-server'
 import { getTenantId } from '@/lib/tenant'
 import { requireUser } from '@/lib/auth'
+import { getVisibleUserIds } from '@/lib/visibility'
 
 export async function GET(req: NextRequest) {
   const user = await requireUser()
@@ -14,14 +15,7 @@ export async function GET(req: NextRequest) {
   const supabase = createServerSupabase()
   const tenantId = getTenantId()
 
-  // Get subordinate IDs (users whose manager is the current user)
-  const { data: subordinates } = await supabase
-    .from('users')
-    .select('id')
-    .eq('tenant_id', tenantId)
-    .eq('manager_user_id', user.userId)
-
-  const subIds = (subordinates ?? []).map(s => s.id)
+  const subIds = await getVisibleUserIds(user.userId, supabase, tenantId)
   if (subIds.length === 0) return NextResponse.json([])
 
   // If a specific userId is requested, verify they are a subordinate

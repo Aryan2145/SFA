@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabase } from '@/lib/supabase-server'
 import { getTenantId } from '@/lib/tenant'
 import { requireUser } from '@/lib/auth'
+import { canView } from '@/lib/visibility'
 
 export async function POST(_req: NextRequest, { params }: { params: { id: string } }) {
   const user = await requireUser()
@@ -17,12 +18,8 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
   if (!plan) return NextResponse.json({ error: 'Plan not found' }, { status: 404 })
   if (!plan.reopen_requested) return NextResponse.json({ error: 'No reopen request pending' }, { status: 400 })
 
-  // Verify current user is manager of the plan owner
-  const { data: planOwner } = await supabase
-    .from('users').select('manager_user_id').eq('id', plan.user_id).single()
-  if (planOwner?.manager_user_id !== user.userId) {
-    return NextResponse.json({ error: 'Not authorized' }, { status: 403 })
-  }
+  const authorized = await canView(user.userId!, plan.user_id, supabase, tid)
+  if (!authorized) return NextResponse.json({ error: 'Not authorized' }, { status: 403 })
 
   const now = new Date().toISOString()
   await supabase.from('weekly_plans').update({
