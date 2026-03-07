@@ -2,10 +2,8 @@
 
 import { useState, useRef, useCallback } from 'react'
 
-type Tab = 'locations' | 'products'
-
-type LocRow = { State?: string; District?: string; Taluka?: string; Village?: string; [k: string]: string | undefined }
-type ProdRow = { Category?: string; 'Sub-Category'?: string; 'Product Name'?: string; Price?: string; SKU?: string; [k: string]: string | undefined }
+type Tab = 'locations' | 'products' | 'distributors' | 'dealers'
+type RawRow = Record<string, string>
 
 type ImportResult = {
   created: Record<string, number>
@@ -14,21 +12,60 @@ type ImportResult = {
   error?: string
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Page
-// ─────────────────────────────────────────────────────────────────────────────
+const TAB_CONFIG: Record<Tab, {
+  label: string
+  sheetName: string
+  endpoint: string
+  cols: string[]
+  hint: string
+}> = {
+  locations: {
+    label: 'Locations',
+    sheetName: 'Locations',
+    endpoint: '/api/masters/import/locations',
+    cols: ['State', 'District', 'Taluka', 'Village'],
+    hint: 'Hierarchy: State → District → Taluka → Village. Leave columns empty to create only up to that level.',
+  },
+  products: {
+    label: 'Products',
+    sheetName: 'Products',
+    endpoint: '/api/masters/import/products',
+    cols: ['Category', 'Sub-Category', 'Product Name', 'Price', 'SKU'],
+    hint: 'Hierarchy: Category → Sub-Category → Product. Leave Product Name empty to create only higher levels. Price and SKU are optional.',
+  },
+  distributors: {
+    label: 'Distributors',
+    sheetName: 'Distributors',
+    endpoint: '/api/masters/import/distributors',
+    cols: ['Name', 'Phone', 'Address', 'Description', 'District', 'Taluka', 'Village', 'Latitude', 'Longitude'],
+    hint: 'Name is required. District, Taluka, Village are optional for place assignment. Phone must be 10 digits if provided.',
+  },
+  dealers: {
+    label: 'Dealers',
+    sheetName: 'Dealers',
+    endpoint: '/api/masters/import/dealers',
+    cols: ['Name', 'Phone', 'Address', 'Description', 'District', 'Taluka', 'Village', 'Distributor', 'Latitude', 'Longitude'],
+    hint: 'Name, District and Taluka are required. Distributor column links by name — import Distributors first if linking.',
+  },
+}
+
+const TABS = Object.keys(TAB_CONFIG) as Tab[]
+
+const EMPTY_ROWS: Record<Tab, RawRow[]> = { locations: [], products: [], distributors: [], dealers: [] }
+
 export default function MastersImportPage() {
   const [tab, setTab] = useState<Tab>('locations')
-  const [locRows, setLocRows] = useState<LocRow[]>([])
-  const [prodRows, setProdRows] = useState<ProdRow[]>([])
+  const [tabRows, setTabRows] = useState<Record<Tab, RawRow[]>>(EMPTY_ROWS)
   const [importing, setImporting] = useState(false)
   const [result, setResult] = useState<ImportResult | null>(null)
   const [parseError, setParseError] = useState('')
   const [dragOver, setDragOver] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
-  const rows = tab === 'locations' ? locRows : prodRows
+  const cfg = TAB_CONFIG[tab]
+  const rows = tabRows[tab]
   const hasRows = rows.length > 0
+  const preview = rows.slice(0, 20)
 
   // ── Template download ─────────────────────────────────────────────────────
   const downloadTemplate = async () => {
@@ -55,6 +92,23 @@ export default function MastersImportPage() {
     prodWs['!cols'] = [{ wch: 20 }, { wch: 20 }, { wch: 25 }, { wch: 10 }, { wch: 12 }]
     XLSX.utils.book_append_sheet(wb, prodWs, 'Products')
 
+    const distWs = XLSX.utils.aoa_to_sheet([
+      ['Name', 'Phone', 'Address', 'Description', 'District', 'Taluka', 'Village', 'Latitude', 'Longitude'],
+      ['Sharma Distributors', '9876543210', '123 Market Road, Pune', 'Primary western region distributor', 'Pune', 'Haveli', '', '', ''],
+      ['Patil Enterprises', '9123456780', '45 Station Road, Nagpur', '', 'Nagpur', 'Hingna', '', '', ''],
+    ])
+    distWs['!cols'] = [{ wch: 25 }, { wch: 12 }, { wch: 30 }, { wch: 30 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 10 }, { wch: 10 }]
+    XLSX.utils.book_append_sheet(wb, distWs, 'Distributors')
+
+    const dealerWs = XLSX.utils.aoa_to_sheet([
+      ['Name', 'Phone', 'Address', 'Description', 'District', 'Taluka', 'Village', 'Distributor', 'Latitude', 'Longitude'],
+      ['ABC Traders', '9988776655', '12 Gandhi Nagar', '', 'Pune', 'Haveli', 'Hadapsar', 'Sharma Distributors', '', ''],
+      ['XYZ Stores', '9871234560', '67 Ring Road', '', 'Pune', 'Haveli', 'Kharadi', 'Sharma Distributors', '', ''],
+      ['Kumar Sales', '9000012345', '5 Civil Lines', '', 'Nagpur', 'Hingna', '', 'Patil Enterprises', '', ''],
+    ])
+    dealerWs['!cols'] = [{ wch: 25 }, { wch: 12 }, { wch: 25 }, { wch: 25 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 25 }, { wch: 10 }, { wch: 10 }]
+    XLSX.utils.book_append_sheet(wb, dealerWs, 'Dealers')
+
     XLSX.writeFile(wb, 'masters-import-template.xlsx')
   }
 
@@ -73,25 +127,23 @@ export default function MastersImportPage() {
       const XLSX = await import('xlsx')
       const wb = XLSX.read(buf, { type: 'array' })
 
-      const sheetName = tab === 'locations' ? 'Locations' : 'Products'
-      const sheet = wb.Sheets[sheetName]
+      const sheet = wb.Sheets[cfg.sheetName]
       if (!sheet) {
-        setParseError(`Sheet "${sheetName}" not found. Please use the provided template.`)
+        setParseError(`Sheet "${cfg.sheetName}" not found in this file. Please use the provided template.`)
         return
       }
 
-      const parsed = XLSX.utils.sheet_to_json(sheet, { defval: '' }) as LocRow[] | ProdRow[]
+      const parsed = XLSX.utils.sheet_to_json(sheet, { defval: '' }) as RawRow[]
       if (parsed.length === 0) {
-        setParseError('The sheet is empty. Add data rows below the header.')
+        setParseError('The sheet is empty. Add data rows below the header row.')
         return
       }
 
-      if (tab === 'locations') setLocRows(parsed as LocRow[])
-      else setProdRows(parsed as ProdRow[])
+      setTabRows(prev => ({ ...prev, [tab]: parsed }))
     } catch {
       setParseError('Could not read the file. Make sure it is a valid .xlsx file.')
     }
-  }, [tab])
+  }, [tab, cfg.sheetName])
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -111,13 +163,8 @@ export default function MastersImportPage() {
     if (!hasRows) return
     setImporting(true)
     setResult(null)
-
-    const endpoint = tab === 'locations'
-      ? '/api/masters/import/locations'
-      : '/api/masters/import/products'
-
     try {
-      const r = await fetch(endpoint, {
+      const r = await fetch(cfg.endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ rows }),
@@ -132,17 +179,16 @@ export default function MastersImportPage() {
   }
 
   const clearFile = () => {
-    if (tab === 'locations') setLocRows([])
-    else setProdRows([])
+    setTabRows(prev => ({ ...prev, [tab]: [] }))
     setResult(null)
     setParseError('')
   }
 
-  // ── Column headers per tab ────────────────────────────────────────────────
-  const locCols = ['State', 'District', 'Taluka', 'Village']
-  const prodCols = ['Category', 'Sub-Category', 'Product Name', 'Price', 'SKU']
-  const cols = tab === 'locations' ? locCols : prodCols
-  const preview = rows.slice(0, 20)
+  const switchTab = (t: Tab) => {
+    setTab(t)
+    setResult(null)
+    setParseError('')
+  }
 
   return (
     <div className="max-w-5xl mx-auto p-6">
@@ -150,9 +196,7 @@ export default function MastersImportPage() {
       <div className="flex items-start justify-between mb-6">
         <div>
           <h1 className="text-xl font-semibold text-gray-900">Import Master Data</h1>
-          <p className="text-sm text-gray-500 mt-0.5">
-            Bulk-create hierarchical masters from a single Excel file
-          </p>
+          <p className="text-sm text-gray-500 mt-0.5">Bulk-create masters from a single Excel workbook</p>
         </div>
         <button
           onClick={downloadTemplate}
@@ -167,35 +211,45 @@ export default function MastersImportPage() {
 
       {/* Tabs */}
       <div className="flex gap-1 mb-6 border-b border-gray-200">
-        {(['locations', 'products'] as Tab[]).map(t => (
+        {TABS.map(t => (
           <button
             key={t}
-            onClick={() => { setTab(t); setResult(null); setParseError('') }}
-            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors capitalize ${
-              tab === t
-                ? 'border-blue-600 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
+            onClick={() => switchTab(t)}
+            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+              tab === t ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
             }`}
           >
-            {t === 'locations' ? 'Locations' : 'Products'}
+            {TAB_CONFIG[t].label}
+            {tabRows[t].length > 0 && tab !== t && (
+              <span className="ml-1.5 px-1.5 py-0.5 rounded-full text-xs bg-blue-100 text-blue-600">
+                {tabRows[t].length}
+              </span>
+            )}
           </button>
         ))}
       </div>
 
-      {/* Instructions */}
-      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-5 text-sm text-blue-800">
-        {tab === 'locations' ? (
-          <>
-            <strong>Location hierarchy:</strong> State → District → Taluka → Village.
-            Leave columns empty to create only up to that level. Download the template to see the expected format.
-          </>
-        ) : (
-          <>
-            <strong>Product hierarchy:</strong> Category → Sub-Category → Product.
-            Leave Sub-Category or Product Name empty to create only higher levels. Price and SKU are optional.
-          </>
-        )}
-      </div>
+      {/* Dealer import order notice */}
+      {tab === 'dealers' && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-5 flex gap-3 text-sm text-amber-800">
+          <svg className="w-4 h-4 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+          </svg>
+          <span><strong>Import order matters:</strong> If linking dealers to distributors via the Distributor column, import the <strong>Distributors</strong> sheet first so the names can be resolved.</span>
+        </div>
+      )}
+
+      {/* Hint */}
+      {tab !== 'dealers' && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-5 text-sm text-blue-800">
+          {cfg.hint}
+        </div>
+      )}
+      {tab === 'dealers' && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-5 text-sm text-blue-800">
+          {cfg.hint}
+        </div>
+      )}
 
       {/* Upload zone */}
       {!hasRows && (
@@ -218,7 +272,9 @@ export default function MastersImportPage() {
               <p className="text-sm font-medium text-gray-700">
                 Drop your .xlsx file here or <span className="text-blue-600">browse</span>
               </p>
-              <p className="text-xs text-gray-400 mt-1">Must use the provided template format</p>
+              <p className="text-xs text-gray-400 mt-1">
+                Must contain a <strong>&quot;{cfg.sheetName}&quot;</strong> sheet — use the template above
+              </p>
             </div>
           </div>
           <input ref={fileRef} type="file" accept=".xlsx,.xls" onChange={handleFileInput} className="hidden" />
@@ -251,8 +307,8 @@ export default function MastersImportPage() {
                 <thead>
                   <tr className="bg-gray-50 border-b border-gray-200">
                     <th className="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide w-12">#</th>
-                    {cols.map(c => (
-                      <th key={c} className="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                    {cfg.cols.map(c => (
+                      <th key={c} className="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">
                         {c}
                       </th>
                     ))}
@@ -262,9 +318,9 @@ export default function MastersImportPage() {
                   {preview.map((row, i) => (
                     <tr key={i} className="hover:bg-gray-50">
                       <td className="px-3 py-2 text-gray-400 text-xs">{i + 2}</td>
-                      {cols.map(c => (
-                        <td key={c} className="px-3 py-2 text-gray-700 truncate max-w-[200px]">
-                          {(row as Record<string, string>)[c] || <span className="text-gray-300">—</span>}
+                      {cfg.cols.map(c => (
+                        <td key={c} className="px-3 py-2 text-gray-700 truncate max-w-[180px]">
+                          {row[c] || <span className="text-gray-300">—</span>}
                         </td>
                       ))}
                     </tr>
@@ -274,14 +330,13 @@ export default function MastersImportPage() {
             </div>
           </div>
 
-          {/* Import button */}
           {!result && (
             <button
               onClick={handleImport}
               disabled={importing}
               className="w-full py-2.5 bg-blue-600 text-white text-sm font-medium rounded-xl hover:bg-blue-700 disabled:opacity-60 transition-colors"
             >
-              {importing ? 'Importing...' : `Import ${rows.length} rows`}
+              {importing ? 'Importing…' : `Import ${rows.length} rows`}
             </button>
           )}
         </div>
@@ -305,7 +360,7 @@ export default function MastersImportPage() {
                     <span className="text-green-600">✓</span>
                     <span className="capitalize text-gray-700 font-medium w-32">{key}:</span>
                     <span className="text-green-700 font-semibold">{count} created</span>
-                    {result.existing[key] > 0 && (
+                    {(result.existing[key] ?? 0) > 0 && (
                       <span className="text-gray-400">({result.existing[key]} already existed)</span>
                     )}
                   </div>
