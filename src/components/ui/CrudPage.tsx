@@ -28,11 +28,12 @@ interface CrudPageProps {
   onToggleActive?: (row: Record<string, unknown>, val: boolean) => void
   showActive?: boolean
   addLabel?: string
+  filterBar?: ReactNode
 }
 
 export default function CrudPage({
   title, backHref, columns, rows, allRowsCount, isLoading, search, onSearchChange,
-  page, totalPages, onPage, onAdd, onEdit, onDelete, onToggleActive, showActive = true, addLabel = '+ Add',
+  page, totalPages, onPage, onAdd, onEdit, onDelete, onToggleActive, showActive = true, addLabel = '+ Add', filterBar,
 }: CrudPageProps) {
   return (
     <div>
@@ -56,6 +57,7 @@ export default function CrudPage({
           className="border border-gray-300 rounded-lg px-3 py-2 text-sm w-72 focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
       </div>
+      {filterBar && <div className="mb-3">{filterBar}</div>}
 
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         <table className="w-full text-sm">

@@ -6,7 +6,7 @@ export async function GET(req: NextRequest) {
   const q = req.nextUrl.searchParams.get('q') ?? ''
   const supabase = createServerSupabase()
   const tid = getTenantId()
-  let query = supabase.from('distributors').select('*, states(name), districts(name), talukas(name), villages(name)').eq('tenant_id', tid).order('name')
+  let query = supabase.from('distributors').select('*, states(name), districts(name), talukas(name), villages(name), dealers(id, name)').eq('tenant_id', tid).order('name')
   if (q) query = query.ilike('name', `%${q}%`)
   const { data, error } = await query
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

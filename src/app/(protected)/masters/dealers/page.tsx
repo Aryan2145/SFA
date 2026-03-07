@@ -6,11 +6,27 @@ import Modal from '@/components/ui/Modal'
 import SearchableSelect from '@/components/ui/SearchableSelect'
 import { useCrud } from '@/hooks/useCrud'
 
+const PAGE_SIZE = 15
+
 const COLS: Column[] = [
   { key: 'name', label: 'Name' },
-  { key: 'state', label: 'State', render: r => (r.states as { name: string } | null)?.name ?? '' },
-  { key: 'district', label: 'District', render: r => (r.districts as { name: string } | null)?.name ?? '' },
-  { key: 'taluka', label: 'Taluka', render: r => (r.talukas as { name: string } | null)?.name ?? '' },
+  { key: 'place', label: 'Place', render: r => {
+    const dist = (r.districts as { name: string } | null)?.name
+    const talu = (r.talukas as { name: string } | null)?.name
+    const vill = (r.villages as { name: string } | null)?.name
+    if (!dist) return <span className="text-gray-400">—</span>
+    return <span>{[`District: ${dist}`, talu && `Taluka: ${talu}`, vill && `Village: ${vill}`].filter(Boolean).join(', ')}</span>
+  }},
+  { key: 'distributor', label: 'Distributor', render: r => {
+    const name = (r.distributors as { name: string } | null)?.name
+    if (!name) return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">
+        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>
+        Unassigned
+      </span>
+    )
+    return <span className="text-sm text-gray-700">{name}</span>
+  }},
 ]
 
 type Opt = { value: string; label: string }
@@ -24,6 +40,20 @@ const EMPTY_DIST_FORM = { name: '', place: '', state_id: '', district_id: '', ta
 
 export default function DealersPage() {
   const crud = useCrud('/api/masters/dealers')
+
+  // ── Unassigned filter ───────────────────────────────────────────────────────
+  const [showUnassigned, setShowUnassigned] = useState(false)
+  const [filterPage, setFilterPage] = useState(1)
+
+  const unassignedRows = useMemo(() => crud.allRows.filter(r => !r.distributor_id), [crud.allRows])
+  const unassignedPageRows = useMemo(() => unassignedRows.slice((filterPage - 1) * PAGE_SIZE, filterPage * PAGE_SIZE), [unassignedRows, filterPage])
+  const unassignedTotalPages = Math.max(1, Math.ceil(unassignedRows.length / PAGE_SIZE))
+
+  const displayRows = showUnassigned ? unassignedPageRows : crud.rows
+  const displayPage = showUnassigned ? filterPage : crud.page
+  const displayTotalPages = showUnassigned ? unassignedTotalPages : crud.totalPages
+  const displayOnPage = showUnassigned ? setFilterPage : crud.setPage
+  const displayCount = showUnassigned ? unassignedRows.length : crud.allRows.length
 
   // ── Dealer modal ────────────────────────────────────────────────────────────
   const [open, setOpen] = useState(false)
@@ -139,11 +169,38 @@ export default function DealersPage() {
 
   return (
     <>
-      <CrudPage title="Dealers" backHref="/masters" columns={COLS} rows={crud.rows} allRowsCount={crud.allRows.length}
-        isLoading={crud.isLoading} search={crud.search} onSearchChange={crud.setSearch}
-        page={crud.page} totalPages={crud.totalPages} onPage={crud.setPage}
-        onAdd={openAdd} onEdit={openEdit} onToggleActive={(r, v) => crud.update(r.id as string, { is_active: v })}
-        onDelete={r => crud.remove(r.id as string)} />
+      <CrudPage
+        title="Dealers" backHref="/masters" columns={COLS}
+        rows={displayRows} allRowsCount={displayCount}
+        isLoading={crud.isLoading} search={crud.search}
+        onSearchChange={v => { crud.setSearch(v); setFilterPage(1) }}
+        page={displayPage} totalPages={displayTotalPages} onPage={displayOnPage}
+        onAdd={openAdd} onEdit={openEdit}
+        onToggleActive={(r, v) => crud.update(r.id as string, { is_active: v })}
+        onDelete={r => crud.remove(r.id as string)}
+        filterBar={
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => setShowUnassigned(false)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${!showUnassigned ? 'bg-gray-800 text-white' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'}`}
+            >
+              All <span className="ml-1 opacity-70">({crud.allRows.length})</span>
+            </button>
+            <button
+              onClick={() => { setShowUnassigned(true); setFilterPage(1) }}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${showUnassigned ? 'bg-amber-500 text-white' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'}`}
+            >
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>
+              Unassigned
+              {unassignedRows.length > 0 && (
+                <span className={`px-1.5 py-0.5 rounded-full text-xs ${showUnassigned ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-700'}`}>
+                  {unassignedRows.length}
+                </span>
+              )}
+            </button>
+          </div>
+        }
+      />
 
       {/* ── Dealer modal ── */}
       <Modal title={editing ? 'Edit Dealer' : 'Add Dealer'} isOpen={open} onClose={() => setOpen(false)} onSave={handleSave} isSaving={saving} size="lg">

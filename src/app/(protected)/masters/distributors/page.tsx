@@ -6,6 +6,34 @@ import Modal from '@/components/ui/Modal'
 import SearchableSelect from '@/components/ui/SearchableSelect'
 import { useCrud } from '@/hooks/useCrud'
 
+type DealerRef = { id: string; name: string }
+
+function DealerExpandCell({ dealers }: { dealers: DealerRef[] }) {
+  const [expanded, setExpanded] = useState(false)
+  if (!dealers || dealers.length === 0)
+    return <span className="text-xs text-gray-400 italic">No dealers</span>
+  return (
+    <div>
+      <button
+        onClick={e => { e.stopPropagation(); setExpanded(x => !x) }}
+        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"
+      >
+        {dealers.length} dealer{dealers.length !== 1 ? 's' : ''}
+        <svg className={`w-3 h-3 transition-transform ${expanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+        </svg>
+      </button>
+      {expanded && (
+        <div className="mt-2 flex flex-wrap gap-1 max-w-xs">
+          {dealers.map(d => (
+            <span key={d.id} className="px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-700 border border-gray-200">{d.name}</span>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 const COLS: Column[] = [
   { key: 'name', label: 'Name' },
   { key: 'phone', label: 'Phone', render: r => String(r.phone ?? '—') },
@@ -13,9 +41,10 @@ const COLS: Column[] = [
     const dist = (r.districts as { name: string } | null)?.name
     const talu = (r.talukas as { name: string } | null)?.name
     const vill = (r.villages as { name: string } | null)?.name
-    if (!dist) return '—'
-    return [dist && `District: ${dist}`, talu && `Taluka: ${talu}`, vill && `Village: ${vill}`].filter(Boolean).join(', ')
+    if (!dist) return <span className="text-gray-400">—</span>
+    return <span>{[`District: ${dist}`, talu && `Taluka: ${talu}`, vill && `Village: ${vill}`].filter(Boolean).join(', ')}</span>
   }},
+  { key: 'dealers', label: 'Dealers', render: r => <DealerExpandCell dealers={(r.dealers as DealerRef[]) ?? []} /> },
 ]
 
 type Opt = { value: string; label: string }
