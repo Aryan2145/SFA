@@ -33,6 +33,7 @@ type Expense = {
   amount: number
   notes: string | null
   expense_date: string
+  photo_url: string | null
 }
 
 type PlanItem = {
@@ -511,6 +512,48 @@ function AddExpenseModal({ onClose, onAdd }: { onClose: () => void; onAdd: (e: P
   const [category, setCategory] = useState<string>('')
   const [amount, setAmount] = useState('')
   const [notes, setNotes] = useState('')
+  const [photoFile, setPhotoFile] = useState<File | null>(null)
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null)
+  const [photoError, setPhotoError] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0] ?? null
+    setPhotoError(null)
+    if (!file) { setPhotoFile(null); setPhotoPreview(null); return }
+    if (!['image/jpeg', 'image/jpg', 'image/png'].includes(file.type)) {
+      setPhotoError('Only JPG and PNG files are allowed')
+      e.target.value = ''; return
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setPhotoError('Photo must be 5 MB or less')
+      e.target.value = ''; return
+    }
+    setPhotoFile(file)
+    setPhotoPreview(URL.createObjectURL(file))
+  }
+
+  function removePhoto() {
+    setPhotoFile(null)
+    setPhotoError(null)
+    if (photoPreview) URL.revokeObjectURL(photoPreview)
+    setPhotoPreview(null)
+  }
+
+  async function handleSubmit() {
+    if (!category || !amount || Number(amount) <= 0) return
+    setSubmitting(true)
+    let photo_url: string | null = null
+    if (photoFile) {
+      const fd = new FormData()
+      fd.append('file', photoFile)
+      const r = await fetch('/api/expenses/upload', { method: 'POST', body: fd })
+      if (!r.ok) { setPhotoError((await r.json()).error ?? 'Upload failed'); setSubmitting(false); return }
+      photo_url = (await r.json()).url
+    }
+    onAdd({ category, amount: Number(amount), notes: notes || null, photo_url } as Partial<Expense>)
+    setSubmitting(false)
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4">
@@ -546,13 +589,34 @@ function AddExpenseModal({ onClose, onAdd }: { onClose: () => void; onAdd: (e: P
               placeholder="Optional description"
               className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Receipt Photo</label>
+            {photoPreview ? (
+              <div className="relative w-full">
+                <img src={photoPreview} alt="Receipt preview" className="w-full max-h-48 object-contain rounded-xl border border-gray-200 bg-gray-50" />
+                <button onClick={removePhoto}
+                  className="absolute top-2 right-2 w-6 h-6 bg-white rounded-full shadow flex items-center justify-center text-gray-500 hover:text-red-500 transition">
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              </div>
+            ) : (
+              <label className="flex flex-col items-center gap-2 w-full border-2 border-dashed border-gray-200 rounded-xl py-4 px-3 cursor-pointer hover:border-blue-400 hover:bg-blue-50/40 transition">
+                <svg className="w-7 h-7 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+                </svg>
+                <span className="text-xs text-gray-500">Upload receipt photo (JPG/PNG, max 5 MB)</span>
+                <input type="file" accept="image/jpeg,image/jpg,image/png" className="hidden" onChange={handleFileChange} />
+              </label>
+            )}
+            {photoError && <p className="text-xs text-red-500 mt-1">{photoError}</p>}
+          </div>
         </div>
         <div className="px-5 pb-5 flex gap-2">
           <button onClick={onClose} className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition">Cancel</button>
-          <button onClick={() => { if (category && amount) onAdd({ category, amount: Number(amount), notes: notes || null } as Partial<Expense>) }}
-            disabled={!category || !amount || Number(amount) <= 0}
+          <button onClick={handleSubmit}
+            disabled={!category || !amount || Number(amount) <= 0 || submitting}
             className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-medium disabled:opacity-40 transition">
-            Add Expense
+            {submitting ? 'Saving...' : 'Add Expense'}
           </button>
         </div>
       </div>
@@ -860,6 +924,11 @@ function ExpensesTab({ selectedDate, onOpenRemarks, isFuture }: { selectedDate: 
                     <span className="text-base font-bold text-gray-900 ml-auto">₹{Number(exp.amount).toFixed(0)}</span>
                   </div>
                   {exp.notes && <p className="text-sm text-gray-500 mt-1.5">{exp.notes}</p>}
+                  {exp.photo_url && (
+                    <a href={exp.photo_url} target="_blank" rel="noopener noreferrer" className="mt-2 block">
+                      <img src={exp.photo_url} alt="Receipt" className="h-20 w-auto rounded-lg border border-gray-200 object-cover hover:opacity-90 transition" />
+                    </a>
+                  )}
                 </div>
               </div>
               <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-end gap-2">

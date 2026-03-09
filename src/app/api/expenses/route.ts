@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const user = await requireUser()
-  const { expense_date, category, amount, notes } = await req.json()
+  const { expense_date, category, amount, notes, photo_url } = await req.json()
   if (!expense_date || !category || !amount) {
     return NextResponse.json({ error: 'expense_date, category and amount are required' }, { status: 400 })
   }
@@ -38,6 +38,7 @@ export async function POST(req: NextRequest) {
       category,
       amount: Number(amount),
       notes: notes ?? null,
+      photo_url: photo_url ?? null,
     })
     .select()
     .single()

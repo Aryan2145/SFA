@@ -510,3 +510,12 @@ CREATE TABLE IF NOT EXISTS role_permissions (
   UNIQUE (tenant_id, profile, section)
 );
 ALTER TABLE role_permissions ENABLE ROW LEVEL SECURITY;
+
+-- ================================================================
+-- Expenses — photo attachment
+-- ================================================================
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS photo_url TEXT;
+
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES ('expense-photos', 'expense-photos', true, 5242880, ARRAY['image/jpeg','image/jpg','image/png'])
+ON CONFLICT (id) DO NOTHING;

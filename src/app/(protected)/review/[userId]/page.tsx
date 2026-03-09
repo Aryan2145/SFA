@@ -61,7 +61,7 @@ type Visit = {
 }
 
 type Expense = {
-  id: string; category: string; amount: number; notes: string | null; expense_date: string
+  id: string; category: string; amount: number; notes: string | null; expense_date: string; photo_url: string | null
 }
 
 type RemarksState = { contextType: 'meeting' | 'expense' | 'weekly_plan'; contextId: string; title: string } | null
@@ -436,6 +436,11 @@ function ExpensesTab({ userId, onOpenRemarks }: { userId: string; onOpenRemarks:
                 <span className="text-base font-bold text-gray-900 ml-auto">₹{Number(exp.amount).toFixed(0)}</span>
               </div>
               {exp.notes && <p className="text-sm text-gray-500 mt-1.5">{exp.notes}</p>}
+              {exp.photo_url && (
+                <a href={exp.photo_url} target="_blank" rel="noopener noreferrer" className="mt-2 block">
+                  <img src={exp.photo_url} alt="Receipt" className="h-20 w-auto rounded-lg border border-gray-200 object-cover hover:opacity-90 transition" />
+                </a>
+              )}
               <div className="mt-2 pt-2 border-t border-gray-100 flex justify-end">
                 <button onClick={() => onOpenRemarks({ contextType: 'expense', contextId: exp.id, title: `${exp.category} — ₹${Number(exp.amount).toFixed(0)}` })}
                   className="p-1.5 rounded-lg text-gray-400 hover:text-blue-500 hover:bg-blue-50 transition" title="Remarks">
