@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { useToast } from '@/contexts/ToastContext'
 
 type State = { id: string; name: string }
@@ -14,12 +14,15 @@ export default function TerritoryCanvasPage() {
   const params = useParams()
   const userId = params.userId as string
   const { toast } = useToast()
+  const router = useRouter()
 
   const [user, setUser] = useState<UserInfo | null>(null)
   const [states, setStates] = useState<State[]>([])
   const [stateSearch, setStateSearch] = useState('')
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [showSuccess, setShowSuccess] = useState(false)
+  const [savedSummary, setSavedSummary] = useState({ states: 0, districts: 0, talukas: 0, villages: 0 })
 
   // Selected IDs (the authoritative truth)
   const [stateIds, setStateIds] = useState<Set<string>>(new Set())
@@ -208,7 +211,8 @@ export default function TerritoryCanvasPage() {
         setExpandedStates(new Set(sIds))
         setExpandedDistricts(new Set(dIds))
         setExpandedTalukas(new Set(tIds))
-        toast(`Territory saved — ${sIds.size} states, ${dIds.size} districts, ${tIds.size} talukas, ${vIds.size} villages`)
+        setSavedSummary({ states: sIds.size, districts: dIds.size, talukas: tIds.size, villages: vIds.size })
+        setShowSuccess(true)
       }
     } catch {
       toast('Network error — save failed', 'error')
@@ -452,6 +456,42 @@ export default function TerritoryCanvasPage() {
           {saving ? 'Saving…' : 'Save Territory'}
         </button>
       </div>
+
+      {/* ── Success Dialog ── */}
+      {showSuccess && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40" />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm p-8 text-center">
+            {/* Check icon */}
+            <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg className="w-8 h-8 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+              </svg>
+            </div>
+
+            <h3 className="text-lg font-bold text-gray-900 mb-1">Territory Saved</h3>
+            <p className="text-sm text-gray-500 mb-1">
+              Territory for <span className="font-semibold text-gray-700">{user?.name}</span> has been updated successfully.
+            </p>
+            <p className="text-xs text-gray-400 mb-6">
+              {savedSummary.states} state{savedSummary.states !== 1 ? 's' : ''} · {savedSummary.districts} district{savedSummary.districts !== 1 ? 's' : ''} · {savedSummary.talukas} taluka{savedSummary.talukas !== 1 ? 's' : ''} · {savedSummary.villages} village{savedSummary.villages !== 1 ? 's' : ''}
+            </p>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => router.push('/masters/territory-mapping')}
+                className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 transition">
+                ← Go Back
+              </button>
+              <button
+                onClick={() => setShowSuccess(false)}
+                className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-medium transition">
+                Keep Editing
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

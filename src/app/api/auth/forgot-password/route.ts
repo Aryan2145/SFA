@@ -92,8 +92,9 @@ export async function POST(req: NextRequest) {
       html: emailHtml,
     })
   } catch (err) {
-    console.error('Failed to send reset email:', err)
-    return NextResponse.json({ error: 'Failed to send email. Please contact your administrator.' }, { status: 500 })
+    const message = err instanceof Error ? err.message : String(err)
+    console.error('Failed to send reset email:', message)
+    return NextResponse.json({ error: `Failed to send email: ${message}` }, { status: 500 })
   }
 
   return NextResponse.json({ ok: true })
