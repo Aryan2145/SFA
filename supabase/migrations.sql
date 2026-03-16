@@ -590,3 +590,26 @@ FROM institutions ON CONFLICT (id) DO NOTHING;
 INSERT INTO business_partners (id, tenant_id, type, name, phone, address, description, state_id, district_id, taluka_id, village_id, latitude, longitude, distributor_id, is_active, created_at, updated_at)
 SELECT id, tenant_id, 'Dealer', name, phone, address, description, state_id, district_id, taluka_id, village_id, latitude, longitude, distributor_id, is_active, created_at, updated_at
 FROM dealers ON CONFLICT (id) DO NOTHING;
+
+-- ----------------------------------------------------------------
+-- tenants table (Super Admin panel — multi-tenant management)
+-- ----------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS tenants (
+  id              UUID    PRIMARY KEY DEFAULT gen_random_uuid(),
+  name            TEXT    NOT NULL,
+  email           TEXT,
+  phone           TEXT,
+  address         TEXT,
+  gstin           TEXT,
+  license_count   INT     NOT NULL DEFAULT 10,
+  payment_status  TEXT    NOT NULL DEFAULT 'Active'
+    CHECK (payment_status IN ('Active', 'Overdue', 'Suspended')),
+  payment_due_date DATE,
+  is_active       BOOLEAN NOT NULL DEFAULT true,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+INSERT INTO tenants (id, name, license_count, payment_status)
+VALUES ('00000000-0000-0000-0000-000000000001', 'Nuetech Solar Systems', 100, 'Active')
+ON CONFLICT (id) DO NOTHING;

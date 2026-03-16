@@ -6,6 +6,7 @@ export type SessionUser = {
   userId: string | null
   name: string
   role: string
+  tenantId: string
 }
 
 export async function getCurrentUser(): Promise<SessionUser | null> {

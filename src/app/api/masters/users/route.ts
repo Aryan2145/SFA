@@ -33,6 +33,18 @@ export async function POST(req: NextRequest) {
   const supabase = createServerSupabase()
   const tid = getTenantId()
 
+  // License cap enforcement
+  const [{ count: userCount }, { data: tenant }] = await Promise.all([
+    supabase.from('users').select('*', { count: 'exact', head: true }).eq('tenant_id', tid),
+    supabase.from('tenants').select('license_count').eq('id', tid).single(),
+  ])
+  if (tenant && userCount !== null && userCount >= tenant.license_count) {
+    return NextResponse.json(
+      { error: `User license limit of ${tenant.license_count} reached. Please upgrade your plan.` },
+      { status: 403 }
+    )
+  }
+
   // Level-based manager validation
   if (manager_user_id && level_id) {
     const { data: userLevel } = await supabase.from('levels').select('level_no').eq('id', level_id).single()

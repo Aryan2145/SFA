@@ -1,24 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { signSession, COOKIE_NAME } from '@/lib/session'
 import { createServerSupabase } from '@/lib/supabase-server'
-import { getTenantId } from '@/lib/tenant'
 
 export async function POST(req: NextRequest) {
   const { phone, password } = await req.json()
   if (!phone || !password) return NextResponse.json({ error: 'Phone and password are required' }, { status: 400 })
 
   const supabase = createServerSupabase()
-  const tid = getTenantId()
 
-  // Try DB-based login first (requires password column to exist)
+  // Query user by contact globally (multi-tenant: no tenant filter)
   const { data: user, error: dbError } = await supabase
     .from('users')
-    .select('id, name, profile, contact, password, status')
+    .select('id, name, profile, contact, password, status, tenant_id')
     .eq('contact', phone.trim())
-    .eq('tenant_id', tid)
-    .single()
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .maybeSingle()
 
-  // If DB query succeeded, validate normally
   if (!dbError && user) {
     if (user.password !== password) {
       return NextResponse.json({ error: 'Invalid phone or password' }, { status: 401 })
@@ -26,26 +24,49 @@ export async function POST(req: NextRequest) {
     if (user.status !== 'Active') {
       return NextResponse.json({ error: 'Account is inactive. Contact your administrator.' }, { status: 403 })
     }
-    const token = await signSession({ phone: user.contact, userId: user.id, name: user.name, role: user.profile })
+
+    // Check tenant status
+    if (user.tenant_id) {
+      const { data: tenant } = await supabase
+        .from('tenants')
+        .select('is_active, payment_status')
+        .eq('id', user.tenant_id)
+        .single()
+      if (tenant) {
+        if (!tenant.is_active) {
+          return NextResponse.json({ error: 'Your company account is disabled. Please contact support.' }, { status: 403 })
+        }
+        if (tenant.payment_status === 'Suspended') {
+          return NextResponse.json({ error: "Your company's access has been suspended. Please contact support." }, { status: 403 })
+        }
+      }
+    }
+
+    const token = await signSession({
+      phone: user.contact,
+      userId: user.id,
+      name: user.name,
+      role: user.profile,
+      tenantId: user.tenant_id ?? process.env.DEFAULT_TENANT_ID ?? '',
+    })
     const res = NextResponse.json({ ok: true })
     res.cookies.set(COOKIE_NAME, token, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/', maxAge: 60 * 60 * 8 })
     return res
   }
 
-  // Fallback: password column may not exist yet — allow hardcoded admin
+  // Fallback: hardcoded admin
   if (phone.trim() === '9999999999' && password === 'Admin@123') {
-    // Look up user without password field
     const { data: basicUser } = await supabase
       .from('users')
-      .select('id, name, profile')
+      .select('id, name, profile, tenant_id')
       .eq('contact', phone.trim())
-      .eq('tenant_id', tid)
-      .single()
+      .maybeSingle()
     const token = await signSession({
       phone: phone.trim(),
       userId: basicUser?.id ?? null,
       name: basicUser?.name ?? 'Admin User',
       role: basicUser?.profile ?? 'Administrator',
+      tenantId: basicUser?.tenant_id ?? process.env.DEFAULT_TENANT_ID ?? '',
     })
     const res = NextResponse.json({ ok: true })
     res.cookies.set(COOKIE_NAME, token, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/', maxAge: 60 * 60 * 8 })

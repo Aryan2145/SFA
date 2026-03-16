@@ -21,6 +21,10 @@ export async function GET() {
   const user = await getCurrentUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  if (user.role === 'SuperAdmin') {
+    return NextResponse.json({ ...user, hasSubordinates: false, permissions: allFalse })
+  }
+
   const supabase = createServerSupabase()
 
   if (user.role === 'Administrator') {

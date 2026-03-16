@@ -19,7 +19,9 @@
       "Bash(xargs grep:*)",
       "Bash(find:*)",
       "Bash(\"C:/Users/Aryan/documents/rgb_software/testing/supabase/migrations.sql\":*)",
-      "Bash(\"C:\\\\Users\\\\Aryan\\\\documents\\\\rgb_software\\\\testing\\\\supabase\\\\migrations.sql\":*)"
+      "Bash(\"C:\\\\Users\\\\Aryan\\\\documents\\\\rgb_software\\\\testing\\\\supabase\\\\migrations.sql\":*)",
+      "Bash(find C:\\\\Users\\\\Aryan\\\\documents\\\\rgb_software\\\\testing\\\\src\\\\app\\\\\\(protected\\)\\\\settings:*)",
+      "Bash(grep:*)"
     ]
   },
   "enableAllProjectMcpServers": true,
