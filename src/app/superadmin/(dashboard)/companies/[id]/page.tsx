@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, use } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 
 type Company = {
@@ -24,8 +24,8 @@ const STATUS_STYLES = {
   Suspended: 'bg-red-50 text-red-700',
 }
 
-export default function CompanyDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params)
+export default function CompanyDetailPage({ params }: { params: { id: string } }) {
+  const { id } = params
   const router = useRouter()
   const [company, setCompany] = useState<Company | null>(null)
   const [loading, setLoading] = useState(true)

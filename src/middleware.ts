@@ -21,6 +21,8 @@ export async function middleware(req: NextRequest) {
   }
 
   // SA accessing SA API without a page redirect
+  if (pathname === '/api/superadmin/auth/login') return NextResponse.next()
+
   if (pathname.startsWith('/api/superadmin/')) {
     const token = req.cookies.get(COOKIE_NAME)?.value
     if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
