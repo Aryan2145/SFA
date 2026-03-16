@@ -142,8 +142,8 @@ export default function Sidebar({ open }: SidebarProps) {
             </svg>
           </div>
           <div>
-            <p className="font-bold text-gray-900 text-sm leading-tight">SFA System</p>
-            <p className="text-xs text-teal-600 font-medium">Multi-Tenant</p>
+            <p className="font-bold text-gray-900 text-sm leading-tight">My Prosys SFA</p>
+            <p className="text-xs text-teal-600 font-medium">Neutech Solar</p>
           </div>
         </div>
       </div>
