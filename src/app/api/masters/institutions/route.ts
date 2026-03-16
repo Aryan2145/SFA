@@ -10,12 +10,15 @@ export async function GET(req: NextRequest) {
   const q = req.nextUrl.searchParams.get('q') ?? ''
   const supabase = createServerSupabase()
   const tid = getTenantId()
+
   let query = supabase
-    .from('institutions')
+    .from('business_partners')
     .select('*, states(name), districts(name), talukas(name), villages(name)')
     .eq('tenant_id', tid)
+    .eq('type', 'Institution / Consumer')
     .order('name')
   if (q) query = query.ilike('name', `%${q}%`)
+
   const { data, error } = await query
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json(data)
@@ -34,8 +37,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Longitude must be between -180 and 180' }, { status: 400 })
   const supabase = createServerSupabase()
   const { data, error } = await supabase
-    .from('institutions')
+    .from('business_partners')
     .insert({
+      type: 'Institution / Consumer',
       name: name.trim(),
       phone: phone?.trim() || null,
       address: address || null,

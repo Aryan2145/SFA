@@ -8,9 +8,16 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   const user = await requireUser()
   if (!await checkPermission(user, 'business', 'edit')) return forbidden()
   const body = await req.json()
+  delete body.type
   const supabase = createServerSupabase()
   const { data, error } = await supabase
-    .from('distributors').update(body).eq('id', params.id).eq('tenant_id', getTenantId()).select().single()
+    .from('business_partners')
+    .update(body)
+    .eq('id', params.id)
+    .eq('tenant_id', getTenantId())
+    .eq('type', 'Distributor')
+    .select()
+    .single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json(data)
 }
@@ -20,7 +27,11 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
   if (!await checkPermission(user, 'business', 'delete')) return forbidden()
   const supabase = createServerSupabase()
   const { error } = await supabase
-    .from('distributors').delete().eq('id', params.id).eq('tenant_id', getTenantId())
+    .from('business_partners')
+    .delete()
+    .eq('id', params.id)
+    .eq('tenant_id', getTenantId())
+    .eq('type', 'Distributor')
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true })
 }

@@ -10,13 +10,37 @@ export async function GET(req: NextRequest) {
   const q = req.nextUrl.searchParams.get('q') ?? ''
   const supabase = createServerSupabase()
   const tid = getTenantId()
-  let query = supabase.from('dealers')
-    .select('*, states(name), districts(name), talukas(name), villages(name), distributors(name)')
-    .eq('tenant_id', tid).order('name')
+
+  let query = supabase
+    .from('business_partners')
+    .select('*, states(name), districts(name), talukas(name), villages(name)')
+    .eq('tenant_id', tid)
+    .eq('type', 'Dealer')
+    .order('name')
   if (q) query = query.ilike('name', `%${q}%`)
-  const { data, error } = await query
+
+  const { data: dealers, error } = await query
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json(data)
+
+  // Attach distributor names via a second query (avoids complex self-join)
+  const distIds = [...new Set(
+    (dealers ?? []).filter(d => d.distributor_id).map(d => d.distributor_id as string)
+  )]
+  let distMap = new Map<string, string>()
+  if (distIds.length > 0) {
+    const { data: dists } = await supabase
+      .from('business_partners')
+      .select('id, name')
+      .in('id', distIds)
+    if (dists) distMap = new Map(dists.map(d => [d.id as string, d.name as string]))
+  }
+
+  const result = (dealers ?? []).map(d => ({
+    ...d,
+    distributors: d.distributor_id ? { name: distMap.get(d.distributor_id as string) ?? null } : null,
+  }))
+
+  return NextResponse.json(result)
 }
 
 export async function POST(req: NextRequest) {
@@ -33,14 +57,22 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Longitude must be between -180 and 180' }, { status: 400 })
 
   const supabase = createServerSupabase()
-  const { data, error } = await supabase.from('dealers').insert({
-    name: name.trim(), state_id, district_id, taluka_id,
-    village_id: village_id || null, distributor_id: distributor_id || null,
-    phone: phone?.trim() || null, address: address || null, description: description || null,
-    latitude: latitude != null ? Number(latitude) : null,
-    longitude: longitude != null ? Number(longitude) : null,
-    tenant_id: getTenantId(),
-  }).select().single()
+  const { data, error } = await supabase
+    .from('business_partners')
+    .insert({
+      type: 'Dealer',
+      name: name.trim(), state_id, district_id, taluka_id,
+      village_id: village_id || null,
+      distributor_id: distributor_id || null,
+      phone: phone?.trim() || null,
+      address: address || null,
+      description: description || null,
+      latitude: latitude != null ? Number(latitude) : null,
+      longitude: longitude != null ? Number(longitude) : null,
+      tenant_id: getTenantId(),
+    })
+    .select()
+    .single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json(data, { status: 201 })
 }

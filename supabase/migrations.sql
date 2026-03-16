@@ -550,3 +550,43 @@ ALTER TABLE institutions ENABLE ROW LEVEL SECURITY;
 CREATE TRIGGER set_institutions_updated_at
   BEFORE UPDATE ON institutions
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+-- ================================================================
+-- Business Partners: unified table replacing dealers + distributors + institutions
+-- ================================================================
+CREATE TABLE IF NOT EXISTS business_partners (
+  id              UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id       UUID        NOT NULL,
+  type            TEXT        NOT NULL CHECK (type IN ('Dealer', 'Distributor', 'Institution / Consumer')),
+  name            TEXT        NOT NULL,
+  distributor_id  UUID        REFERENCES business_partners(id) ON DELETE SET NULL,
+  phone           TEXT,
+  address         TEXT,
+  description     TEXT,
+  state_id        UUID        REFERENCES states(id),
+  district_id     UUID        REFERENCES districts(id),
+  taluka_id       UUID        REFERENCES talukas(id),
+  village_id      UUID        REFERENCES villages(id),
+  latitude        NUMERIC(10,7),
+  longitude       NUMERIC(10,7),
+  is_active       BOOLEAN     NOT NULL DEFAULT true,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+ALTER TABLE business_partners ENABLE ROW LEVEL SECURITY;
+CREATE TRIGGER set_business_partners_updated_at
+  BEFORE UPDATE ON business_partners
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+-- Data migration: distributors first (preserving UUIDs so dealer FK refs resolve)
+INSERT INTO business_partners (id, tenant_id, type, name, phone, address, description, state_id, district_id, taluka_id, village_id, latitude, longitude, is_active, created_at, updated_at)
+SELECT id, tenant_id, 'Distributor', name, phone, address, description, state_id, district_id, taluka_id, village_id, latitude, longitude, is_active, created_at, updated_at
+FROM distributors ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO business_partners (id, tenant_id, type, name, phone, address, description, state_id, district_id, taluka_id, village_id, latitude, longitude, is_active, created_at, updated_at)
+SELECT id, tenant_id, 'Institution / Consumer', name, phone, address, description, state_id, district_id, taluka_id, village_id, latitude, longitude, is_active, created_at, updated_at
+FROM institutions ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO business_partners (id, tenant_id, type, name, phone, address, description, state_id, district_id, taluka_id, village_id, latitude, longitude, distributor_id, is_active, created_at, updated_at)
+SELECT id, tenant_id, 'Dealer', name, phone, address, description, state_id, district_id, taluka_id, village_id, latitude, longitude, distributor_id, is_active, created_at, updated_at
+FROM dealers ON CONFLICT (id) DO NOTHING;
