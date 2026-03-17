@@ -407,7 +407,7 @@ function VisitCard({ visit, onStart, onStop, onDelete, onOrderEntry, onRemarks, 
 
 // ---- Add Meeting Modal (same data as old AddVisitModal) ----
 function AddMeetingModal({ onClose, onAdd }: { onClose: () => void; onAdd: (v: Partial<Visit>) => void }) {
-  const [visitType, setVisitType] = useState<'Dealer' | 'Distributor'>('Dealer')
+  const [visitType, setVisitType] = useState<'Dealer' | 'Distributor' | 'Institution / Consumer'>('Dealer')
   const [mode, setMode] = useState<'existing' | 'new'>('existing')
   const [entityId, setEntityId] = useState('')
   const [entityName, setEntityName] = useState('')
@@ -417,7 +417,11 @@ function AddMeetingModal({ onClose, onAdd }: { onClose: () => void; onAdd: (v: P
   useEffect(() => {
     setEntityId(''); setEntityName('')
     setLoading(true)
-    const path = visitType === 'Dealer' ? '/api/masters/dealers' : '/api/masters/distributors'
+    const path = visitType === 'Dealer'
+      ? '/api/masters/dealers'
+      : visitType === 'Distributor'
+      ? '/api/masters/distributors'
+      : '/api/masters/institutions'
     fetch(path).then(r => r.json()).then(d => {
       setEntities(Array.isArray(d) ? d : [])
       setLoading(false)
@@ -449,11 +453,11 @@ function AddMeetingModal({ onClose, onAdd }: { onClose: () => void; onAdd: (v: P
         <div className="px-5 py-4 space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Visit Type</label>
-            <div className="grid grid-cols-2 gap-2">
-              {(['Dealer', 'Distributor'] as const).map(t => (
+            <div className="grid grid-cols-3 gap-2">
+              {(['Dealer', 'Distributor', 'Institution / Consumer'] as const).map(t => (
                 <button key={t} onClick={() => setVisitType(t)}
                   className={`py-2.5 rounded-xl text-sm font-medium border-2 transition ${visitType === t ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600 hover:border-gray-300'}`}>
-                  {t}
+                  {t === 'Institution / Consumer' ? 'Institution' : t}
                 </button>
               ))}
             </div>

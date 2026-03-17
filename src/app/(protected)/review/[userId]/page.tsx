@@ -335,7 +335,10 @@ function DailyActivityTab({ userId, onOpenRemarks }: { userId: string; onOpenRem
       .catch(() => setLoading(false))
   }, [userId, selectedDate])
 
-  const typeColor = (t: string) => t === 'Dealer' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'
+  const typeColor = (t: string) =>
+    t === 'Dealer' ? 'bg-blue-100 text-blue-700' :
+    t === 'Distributor' ? 'bg-green-100 text-green-700' :
+    'bg-purple-100 text-purple-700'
   const statusColor = (s: string) => s === 'Active' ? 'bg-amber-100 text-amber-700' : s === 'Completed' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'
 
   return (

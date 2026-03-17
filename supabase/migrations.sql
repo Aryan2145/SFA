@@ -613,3 +613,12 @@ CREATE TABLE IF NOT EXISTS tenants (
 INSERT INTO tenants (id, name, license_count, payment_status)
 VALUES ('00000000-0000-0000-0000-000000000001', 'Nuetech Solar Systems', 100, 'Active')
 ON CONFLICT (id) DO NOTHING;
+
+-- ================================================================
+-- Allow Institution / Consumer as a visit type in daily_visits
+-- ================================================================
+ALTER TABLE daily_visits
+  DROP CONSTRAINT IF EXISTS daily_visits_visit_type_check;
+ALTER TABLE daily_visits
+  ADD CONSTRAINT daily_visits_visit_type_check
+  CHECK (visit_type IN ('Dealer', 'Distributor', 'Institution / Consumer'));
