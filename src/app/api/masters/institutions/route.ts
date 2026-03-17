@@ -17,7 +17,8 @@ export async function GET(req: NextRequest) {
     .from('business_partners')
     .select('*, states(name), districts(name), talukas(name), villages(name)')
     .eq('tenant_id', tid)
-    .eq('type', 'Institution / Consumer')
+    .in('type', ['Institution', 'End Consumer'])
+    .eq('stage', 'Existing')
     .order('name')
   if (q) query = query.ilike('name', `%${q}%`)
 
@@ -30,13 +31,12 @@ export async function POST(req: NextRequest) {
   const user = await requireUser()
   if (!await checkPermission(user, 'business', 'edit')) return forbidden()
   const {
-    name, sub_type, contact_person_name, pincode, gst_number,
+    name, type, contact_person_name, pincode, gst_number,
     mobile_1, mobile_2, address, description,
     state_id, district_id, taluka_id, village_id, latitude, longitude,
   } = await req.json()
   if (!name?.trim()) return NextResponse.json({ error: 'Account Name is required' }, { status: 400 })
-  if (sub_type && !['Institution', 'Consumer'].includes(sub_type))
-    return NextResponse.json({ error: 'Invalid category' }, { status: 400 })
+  const resolvedType = ['Institution', 'End Consumer'].includes(type) ? type : 'Institution'
   if (mobile_1 && !/^\d{10}$/.test(String(mobile_1).trim()))
     return NextResponse.json({ error: 'Mobile Number 1 must be exactly 10 digits' }, { status: 400 })
   if (mobile_2 && !/^\d{10}$/.test(String(mobile_2).trim()))
@@ -53,8 +53,8 @@ export async function POST(req: NextRequest) {
   const { data, error } = await supabase
     .from('business_partners')
     .insert({
-      type: 'Institution / Consumer',
-      sub_type: sub_type || null,
+      type: resolvedType,
+      stage: 'Existing',
       name: name.trim(),
       contact_person_name: contact_person_name?.trim() || null,
       pincode: pincode?.trim() || null,

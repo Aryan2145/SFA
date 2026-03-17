@@ -18,6 +18,7 @@ export async function GET(req: NextRequest) {
     .select('*, states(name), districts(name), talukas(name), villages(name)')
     .eq('tenant_id', tid)
     .eq('type', 'Dealer')
+    .eq('stage', 'Existing')
     .order('name')
   if (q) query = query.ilike('name', `%${q}%`)
 

@@ -1,0 +1,32 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { createServerSupabase } from '@/lib/supabase-server'
+import { getTenantId } from '@/lib/tenant'
+import { requireUser } from '@/lib/auth'
+
+export const dynamic = 'force-dynamic'
+
+export async function GET() {
+  await requireUser()
+  const supabase = createServerSupabase()
+  const { data, error } = await supabase
+    .from('lead_stages')
+    .select('*')
+    .eq('tenant_id', getTenantId())
+    .order('sort_order')
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json(data)
+}
+
+export async function POST(req: NextRequest) {
+  const user = await requireUser()
+  if (user.role !== 'Administrator') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  const { name, sort_order } = await req.json()
+  if (!name?.trim()) return NextResponse.json({ error: 'Name is required' }, { status: 400 })
+  const supabase = createServerSupabase()
+  const { data, error } = await supabase
+    .from('lead_stages')
+    .insert({ tenant_id: getTenantId(), name: name.trim(), sort_order: sort_order ?? 0, is_fixed: false })
+    .select().single()
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json(data, { status: 201 })
+}

@@ -7,10 +7,13 @@ import RemarksPanel from '@/components/ui/RemarksPanel'
 import CalendarPicker from '@/components/ui/CalendarPicker'
 
 // ---- Types ----
+type NewProspectPayload = { name: string; mobile_1: string | null; state_id: string | null; district_id: string | null; taluka_id: string | null; village_id: string | null }
+
 type Visit = {
   id: string
-  visit_type: 'Dealer' | 'Distributor'
+  visit_type: string
   entity_name: string
+  new_prospect?: NewProspectPayload
   is_new_entity: boolean
   status: 'Pending' | 'Active' | 'Completed'
   start_time: string | null
@@ -405,103 +408,174 @@ function VisitCard({ visit, onStart, onStop, onDelete, onOrderEntry, onRemarks, 
   )
 }
 
-// ---- Add Meeting Modal (same data as old AddVisitModal) ----
+// ---- Add Meeting Modal ----
 function AddMeetingModal({ onClose, onAdd }: { onClose: () => void; onAdd: (v: Partial<Visit>) => void }) {
-  const [visitType, setVisitType] = useState<'Dealer' | 'Distributor' | 'Institution / Consumer'>('Dealer')
-  const [mode, setMode] = useState<'existing' | 'new'>('existing')
+  const [leadTypes, setLeadTypes] = useState<{ id: string; name: string }[]>([])
+  const [visitType, setVisitType] = useState('')
+  const [mode, setMode] = useState<'existing' | 'lead' | 'new_prospect'>('existing')
   const [entityId, setEntityId] = useState('')
-  const [entityName, setEntityName] = useState('')
   const [entities, setEntities] = useState<Entity[]>([])
-  const [loading, setLoading] = useState(false)
+  const [entLoading, setEntLoading] = useState(false)
+  // New prospect fields
+  const [npName, setNpName]     = useState('')
+  const [npMobile, setNpMobile] = useState('')
+  const [npPlace, setNpPlace]   = useState('')
+  const [npTalukaId, setNpTalukaId]   = useState('')
+  const [npVillageId, setNpVillageId] = useState('')
+  const [npDistrictId, setNpDistrictId] = useState('')
+  const [npStateId, setNpStateId]     = useState('')
+  const [placeOptions, setPlaceOptions] = useState<{ value: string; label: string }[]>([])
+  const [placeMap, setPlaceMap] = useState<Map<string, { state_id: string; district_id: string; taluka_id: string; village_id: string | null }>>(new Map())
 
   useEffect(() => {
-    setEntityId(''); setEntityName('')
-    setLoading(true)
-    const path = visitType === 'Dealer'
-      ? '/api/masters/dealers'
-      : visitType === 'Distributor'
-      ? '/api/masters/distributors'
-      : '/api/masters/institutions'
-    fetch(path).then(r => r.json()).then(d => {
-      setEntities(Array.isArray(d) ? d : [])
-      setLoading(false)
-    }).catch(() => setLoading(false))
-  }, [visitType])
+    fetch('/api/masters/lead-types').then(r => r.json()).then((d: { id: string; name: string }[]) => {
+      setLeadTypes(Array.isArray(d) ? d : [])
+      if (d.length > 0) setVisitType(d[0].name)
+    }).catch(() => {})
+    // Load place options for new prospect
+    Promise.all([
+      fetch('/api/masters/districts').then(r => r.json()),
+      fetch('/api/masters/talukas').then(r => r.json()),
+      fetch('/api/masters/villages').then(r => r.json()),
+    ]).then(([districts, talukas, villages]) => {
+      const distMap = new Map(districts.map((d: { id: string; name: string }) => [d.id, d]))
+      const taluMap = new Map(talukas.map((t: { id: string; name: string; district_id: string }) => [t.id, t]))
+      const pm = new Map<string, { state_id: string; district_id: string; taluka_id: string; village_id: string | null }>()
+      const opts: { value: string; label: string }[] = []
+      for (const t of talukas) {
+        const dist = distMap.get(t.district_id) as { id: string; name: string; state_id: string } | undefined
+        if (!dist) continue
+        const val = `t:${t.id}`
+        opts.push({ value: val, label: `District: ${dist.name}, Taluka: ${t.name}` })
+        pm.set(val, { state_id: dist.state_id, district_id: t.district_id, taluka_id: t.id, village_id: null })
+      }
+      for (const v of villages) {
+        const talu = taluMap.get(v.taluka_id) as { id: string; name: string; district_id: string } | undefined
+        const dist = talu ? distMap.get(talu.district_id) as { id: string; name: string; state_id: string } | undefined : undefined
+        if (!talu || !dist) continue
+        const val = `v:${v.id}`
+        opts.push({ value: val, label: `District: ${dist.name}, Taluka: ${talu.name}, Village: ${v.name}` })
+        pm.set(val, { state_id: dist.state_id, district_id: talu.district_id, taluka_id: v.taluka_id, village_id: v.id })
+      }
+      setPlaceOptions(opts)
+      setPlaceMap(pm)
+    }).catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    if (!visitType || mode === 'new_prospect') return
+    setEntityId('')
+    setEntLoading(true)
+    const status = mode === 'lead' ? 'lead' : 'existing'
+    fetch(`/api/business-partners?type=${encodeURIComponent(visitType)}&status=${status}`)
+      .then(r => r.json())
+      .then(d => { setEntities(Array.isArray(d) ? d : []); setEntLoading(false) })
+      .catch(() => setEntLoading(false))
+  }, [visitType, mode])
+
+  function handlePlaceSelect(val: string) {
+    setNpPlace(val)
+    const r = placeMap.get(val)
+    if (r) { setNpStateId(r.state_id); setNpDistrictId(r.district_id); setNpTalukaId(r.taluka_id); setNpVillageId(r.village_id ?? '') }
+    else { setNpStateId(''); setNpDistrictId(''); setNpTalukaId(''); setNpVillageId('') }
+  }
 
   function handleAdd() {
-    if (mode === 'existing' && !entityId) return
-    if (mode === 'new' && !entityName.trim()) return
-    const selected = entities.find(e => e.id === entityId)
-    onAdd({
-      visit_type: visitType,
-      entity_id: mode === 'existing' ? entityId : undefined,
-      entity_name: mode === 'existing' ? (selected?.name ?? '') : entityName.trim(),
-      is_new_entity: mode === 'new',
-    } as Partial<Visit>)
+    if (!visitType) return
+    if (mode === 'new_prospect') {
+      if (!npName.trim()) return
+      onAdd({ visit_type: visitType, new_prospect: { name: npName.trim(), mobile_1: npMobile.trim() || null, state_id: npStateId || null, district_id: npDistrictId || null, taluka_id: npTalukaId || null, village_id: npVillageId || null } } as Partial<Visit>)
+    } else {
+      if (!entityId) return
+      const selected = entities.find(e => e.id === entityId)
+      onAdd({ visit_type: visitType, entity_id: entityId, entity_name: selected?.name ?? '', is_new_entity: false } as Partial<Visit>)
+    }
   }
+
+  const canAdd = visitType && (mode === 'new_prospect' ? !!npName.trim() : !!entityId)
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md">
-        <div className="flex items-center justify-between px-5 py-4 border-b">
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between px-5 py-4 border-b sticky top-0 bg-white rounded-t-2xl">
           <h3 className="font-semibold text-gray-900">New Meeting</h3>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 w-7 h-7 flex items-center justify-center rounded-lg hover:bg-gray-100">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
         </div>
         <div className="px-5 py-4 space-y-4">
+          {/* Step 1: Type */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Visit Type</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Lead Type</label>
+            <div className="flex flex-wrap gap-2">
+              {leadTypes.map(t => (
+                <button key={t.id} onClick={() => setVisitType(t.name)}
+                  className={`px-3 py-2 rounded-xl text-sm font-medium border-2 transition ${visitType === t.name ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600 hover:border-gray-300'}`}>
+                  {t.name}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Step 2: Mode */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Record Type</label>
             <div className="grid grid-cols-3 gap-2">
-              {(['Dealer', 'Distributor', 'Institution / Consumer'] as const).map(t => (
-                <button key={t} onClick={() => setVisitType(t)}
-                  className={`py-2.5 rounded-xl text-sm font-medium border-2 transition ${visitType === t ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600 hover:border-gray-300'}`}>
-                  {t === 'Institution / Consumer' ? 'Institution' : t}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Select or Create</label>
-            <div className="grid grid-cols-2 gap-2">
-              {(['existing', 'new'] as const).map(m => (
+              {(['existing', 'lead', 'new_prospect'] as const).map(m => (
                 <button key={m} onClick={() => setMode(m)}
-                  className={`py-2.5 rounded-xl text-sm font-medium border-2 transition capitalize ${mode === m ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600 hover:border-gray-300'}`}>
-                  {m === 'existing' ? 'Existing' : 'New / Ad-hoc'}
+                  className={`py-2.5 rounded-xl text-xs font-medium border-2 transition ${mode === m ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600 hover:border-gray-300'}`}>
+                  {m === 'existing' ? 'Existing' : m === 'lead' ? 'Lead' : 'New Prospect'}
                 </button>
               ))}
             </div>
           </div>
-          {mode === 'existing' ? (
+
+          {/* Step 3: Conditional content */}
+          {mode !== 'new_prospect' ? (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Select {visitType}</label>
-              {loading ? (
-                <div className="text-sm text-gray-400 py-2">Loading...</div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Select {mode === 'lead' ? 'Lead' : visitType || 'Record'}
+              </label>
+              {entLoading ? (
+                <div className="text-sm text-gray-400 py-2">Loading…</div>
               ) : (
                 <select value={entityId} onChange={e => setEntityId(e.target.value)}
                   className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
-                  <option value="">Select {visitType}...</option>
+                  <option value="">Choose…</option>
                   {entities.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
                 </select>
               )}
-              {entities.length === 0 && !loading && (
-                <p className="text-xs text-amber-600 mt-1">No {visitType.toLowerCase()}s found. Use &quot;New / Ad-hoc&quot;.</p>
+              {entities.length === 0 && !entLoading && (
+                <p className="text-xs text-amber-600 mt-1">No records found for this type / status.</p>
               )}
             </div>
           ) : (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">{visitType} Name <span className="text-red-500">*</span></label>
-              <input type="text" value={entityName} onChange={e => setEntityName(e.target.value)}
-                placeholder={`Enter ${visitType.toLowerCase()} name`}
-                className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Name <span className="text-red-500">*</span></label>
+                <input type="text" value={npName} onChange={e => setNpName(e.target.value)} placeholder="Prospect name"
+                  className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Mobile</label>
+                <input type="tel" value={npMobile} onChange={e => setNpMobile(e.target.value)} placeholder="10-digit number" maxLength={10}
+                  className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Place</label>
+                <select value={npPlace} onChange={e => handlePlaceSelect(e.target.value)}
+                  className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                  <option value="">Select place…</option>
+                  {placeOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+              </div>
             </div>
           )}
         </div>
-        <div className="px-5 pb-5 flex gap-2">
+        <div className="px-5 pb-5 flex gap-2 sticky bottom-0 bg-white border-t pt-3">
           <button onClick={onClose} className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition">Cancel</button>
-          <button onClick={handleAdd}
-            disabled={(mode === 'existing' && !entityId) || (mode === 'new' && !entityName.trim())}
+          <button onClick={handleAdd} disabled={!canAdd}
             className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-medium disabled:opacity-40 transition">
             Add Meeting
           </button>

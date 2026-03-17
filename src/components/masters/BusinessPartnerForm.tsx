@@ -3,6 +3,9 @@
 import { useState, useEffect, useMemo, ReactNode } from 'react'
 import SearchableSelect from '@/components/ui/SearchableSelect'
 
+type LeadStage = { id: string; name: string; sort_order: number; is_fixed: boolean }
+type LeadTemp  = { id: string; name: string; sort_order: number }
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 type Opt = { value: string; label: string }
 type DistrictItem = { id: string; name: string; state_id: string }
@@ -18,8 +21,12 @@ export const EMPTY_BP_FORM = {
   mobile_1: '', mobile_2: '', place: '', state_id: '', district_id: '',
   taluka_id: '', village_id: '', address: '', description: '',
   latitude: '', longitude: '',
-  distributor_id: '',   // dealers only
-  sub_type: 'Institution', // institutions only
+  distributor_id: '',        // dealers only
+  sub_type: 'Institution',   // institutions legacy
+  type: '',                  // lead type (Institution/End Consumer/Dealer/etc.)
+  stage: '',
+  temperature: '',
+  next_follow_up_date: '',
 }
 export type BPFormState = typeof EMPTY_BP_FORM
 
@@ -88,8 +95,12 @@ export function useBPForm() {
       description:          String(row.description ?? ''),
       latitude:             String(row.latitude ?? ''),
       longitude:            String(row.longitude ?? ''),
-      distributor_id:       String(row.distributor_id ?? ''),
+        distributor_id:       String(row.distributor_id ?? ''),
       sub_type:             String(row.sub_type ?? 'Institution'),
+      type:                 String(row.type ?? ''),
+      stage:                String(row.stage ?? ''),
+      temperature:          String(row.temperature ?? ''),
+      next_follow_up_date:  String(row.next_follow_up_date ?? ''),
     })
     setShowMobile2(!!row.mobile_2)
   }
@@ -122,10 +133,13 @@ export function useBPForm() {
       district_id:         form.district_id || null,
       taluka_id:           form.taluka_id || null,
       village_id:          form.village_id || null,
-      address:             form.address || null,
-      description:         form.description || null,
-      latitude:            form.latitude  ? Number(form.latitude)  : null,
-      longitude:           form.longitude ? Number(form.longitude) : null,
+      address:              form.address || null,
+      description:          form.description || null,
+      latitude:             form.latitude  ? Number(form.latitude)  : null,
+      longitude:            form.longitude ? Number(form.longitude) : null,
+      stage:                form.stage || null,
+      temperature:          form.temperature || null,
+      next_follow_up_date:  form.next_follow_up_date || null,
     }
   }
 
@@ -153,10 +167,12 @@ interface BPFormFieldsProps {
   topSlot?: ReactNode
   /** Rendered after Place (e.g. Distributor selector for Dealers) */
   midSlot?: ReactNode
+  /** Show Lead Status section (Stage, Temperature, Next Follow-up) */
+  showLeadStatus?: boolean
 }
 
 export function BusinessPartnerFormFields({
-  hook, namePlaceholder = 'Account name', requirePlace = false, topSlot, midSlot,
+  hook, namePlaceholder = 'Account name', requirePlace = false, topSlot, midSlot, showLeadStatus = false,
 }: BPFormFieldsProps) {
   const {
     form, showMobile2, setShowMobile2, setForm,
@@ -165,6 +181,14 @@ export function BusinessPartnerFormFields({
     gstError, setGstError,
     placeOptions, handlePlaceChange, F,
   } = hook
+
+  const [stages, setStages]  = useState<LeadStage[]>([])
+  const [temps, setTemps]    = useState<LeadTemp[]>([])
+  useEffect(() => {
+    if (!showLeadStatus) return
+    fetch('/api/masters/lead-stages').then(r => r.json()).then(setStages).catch(() => {})
+    fetch('/api/masters/lead-temperatures').then(r => r.json()).then(setTemps).catch(() => {})
+  }, [showLeadStatus])
 
   return (
     <>
@@ -272,6 +296,35 @@ export function BusinessPartnerFormFields({
             className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
         </div>
       </div>
+
+      {showLeadStatus && (
+        <>
+          <div className="border-t border-gray-200 pt-4">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Lead Status</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Stage</label>
+            <select value={form.stage} onChange={F('stage')}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+              <option value="">Select stage…</option>
+              {stages.map(s => <option key={s.id} value={s.name}>{s.name}{s.is_fixed ? ' (fixed)' : ''}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Temperature</label>
+            <select value={form.temperature} onChange={F('temperature')}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+              <option value="">Select temperature…</option>
+              {temps.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Next Follow-up Date</label>
+            <input type="date" value={form.next_follow_up_date} onChange={F('next_follow_up_date')}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+        </>
+      )}
     </>
   )
 }

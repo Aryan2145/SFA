@@ -622,3 +622,44 @@ ALTER TABLE daily_visits
 ALTER TABLE daily_visits
   ADD CONSTRAINT daily_visits_visit_type_check
   CHECK (visit_type IN ('Dealer', 'Distributor', 'Institution / Consumer'));
+
+-- ================================================================
+-- Lead Lifecycle System
+-- ================================================================
+CREATE TABLE IF NOT EXISTS lead_types (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(), tenant_id UUID NOT NULL,
+  name TEXT NOT NULL, sort_order INT NOT NULL DEFAULT 0,
+  is_active BOOLEAN NOT NULL DEFAULT true, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE TABLE IF NOT EXISTS lead_stages (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(), tenant_id UUID NOT NULL,
+  name TEXT NOT NULL, sort_order INT NOT NULL DEFAULT 0,
+  is_fixed BOOLEAN NOT NULL DEFAULT false, is_active BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE TABLE IF NOT EXISTS lead_temperatures (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(), tenant_id UUID NOT NULL,
+  name TEXT NOT NULL, sort_order INT NOT NULL DEFAULT 0,
+  is_active BOOLEAN NOT NULL DEFAULT true, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+ALTER TABLE business_partners DROP CONSTRAINT IF EXISTS business_partners_type_check;
+ALTER TABLE business_partners ADD COLUMN IF NOT EXISTS stage TEXT NOT NULL DEFAULT 'Existing',
+  ADD COLUMN IF NOT EXISTS temperature TEXT, ADD COLUMN IF NOT EXISTS next_follow_up_date DATE;
+UPDATE business_partners SET type = 'Institution'  WHERE type = 'Institution / Consumer' AND sub_type = 'Institution';
+UPDATE business_partners SET type = 'End Consumer' WHERE type = 'Institution / Consumer' AND sub_type = 'Consumer';
+UPDATE business_partners SET type = 'Institution'  WHERE type = 'Institution / Consumer';
+ALTER TABLE daily_visits DROP CONSTRAINT IF EXISTS daily_visits_visit_type_check;
+INSERT INTO lead_types (tenant_id, name, sort_order) VALUES
+  ('00000000-0000-0000-0000-000000000001','Dealer',1),('00000000-0000-0000-0000-000000000001','Distributor',2),
+  ('00000000-0000-0000-0000-000000000001','Institution',3),('00000000-0000-0000-0000-000000000001','End Consumer',4)
+ON CONFLICT DO NOTHING;
+INSERT INTO lead_stages (tenant_id, name, sort_order, is_fixed) VALUES
+  ('00000000-0000-0000-0000-000000000001','Prospect',1,true),('00000000-0000-0000-0000-000000000001','Contacted',2,false),
+  ('00000000-0000-0000-0000-000000000001','Interested',3,false),('00000000-0000-0000-0000-000000000001','Qualified',4,false),
+  ('00000000-0000-0000-0000-000000000001','Proposal',5,false),('00000000-0000-0000-0000-000000000001','Negotiation',6,false),
+  ('00000000-0000-0000-0000-000000000001','Existing',999,true)
+ON CONFLICT DO NOTHING;
+INSERT INTO lead_temperatures (tenant_id, name, sort_order) VALUES
+  ('00000000-0000-0000-0000-000000000001','Cold',1),('00000000-0000-0000-0000-000000000001','Warm',2),
+  ('00000000-0000-0000-0000-000000000001','Hot',3)
+ON CONFLICT DO NOTHING;
