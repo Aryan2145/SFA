@@ -1,6 +1,6 @@
 'use client'
 
-import { ReactNode } from 'react'
+import { ReactNode, useState, useEffect, useRef } from 'react'
 import Toggle from './Toggle'
 import Pagination from './Pagination'
 
@@ -27,6 +27,8 @@ interface CrudPageProps {
   onEdit?: (row: Record<string, unknown>) => void
   onDelete?: (row: Record<string, unknown>) => void
   onToggleActive?: (row: Record<string, unknown>, val: boolean) => void
+  /** When provided, rows get a drag handle and can be reordered. Receives the full new order. */
+  onReorder?: (newRows: Record<string, unknown>[]) => void
   showActive?: boolean
   addLabel?: string
   filterBar?: ReactNode
@@ -34,8 +36,39 @@ interface CrudPageProps {
 
 export default function CrudPage({
   title, headerExtra, backHref, columns, rows, allRowsCount, isLoading, search, onSearchChange,
-  page, totalPages, onPage, onAdd, onEdit, onDelete, onToggleActive, showActive = true, addLabel = '+ Add', filterBar,
+  page, totalPages, onPage, onAdd, onEdit, onDelete, onToggleActive, onReorder,
+  showActive = true, addLabel = '+ Add', filterBar,
 }: CrudPageProps) {
+  // Local ordered rows for drag-and-drop (only used when onReorder is set)
+  const [orderedRows, setOrderedRows] = useState<Record<string, unknown>[]>(rows)
+  useEffect(() => { setOrderedRows(rows) }, [rows])
+
+  const dragIdx    = useRef<number | null>(null)
+  const dragOverIdx = useRef<number | null>(null)
+
+  function handleDragStart(idx: number) { dragIdx.current = idx }
+
+  function handleDragOver(e: React.DragEvent, idx: number) {
+    e.preventDefault()
+    dragOverIdx.current = idx
+  }
+
+  function handleDrop() {
+    const from = dragIdx.current
+    const to   = dragOverIdx.current
+    if (from === null || to === null || from === to) return
+    const next = [...orderedRows]
+    const [moved] = next.splice(from, 1)
+    next.splice(to, 0, moved)
+    setOrderedRows(next)
+    onReorder?.(next)
+    dragIdx.current = null
+    dragOverIdx.current = null
+  }
+
+  const displayRows = onReorder ? orderedRows : rows
+  const colSpan = columns.length + (showActive ? 2 : 1) + (onReorder ? 1 : 0)
+
   return (
     <div>
       {backHref && (
@@ -56,7 +89,6 @@ export default function CrudPage({
         )}
       </div>
 
-
       <div className="mb-3">
         <input
           type="text" placeholder="Search…" value={search}
@@ -70,6 +102,7 @@ export default function CrudPage({
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b border-gray-100">
             <tr>
+              {onReorder && <th className="w-8 px-3 py-3" />}
               {columns.map(c => (
                 <th key={c.key} className="text-left px-4 py-3 font-medium text-gray-600 whitespace-nowrap">{c.label}</th>
               ))}
@@ -79,11 +112,25 @@ export default function CrudPage({
           </thead>
           <tbody>
             {isLoading ? (
-              <tr><td colSpan={columns.length + (showActive ? 2 : 1)} className="text-center py-12 text-gray-400">Loading…</td></tr>
-            ) : rows.length === 0 ? (
-              <tr><td colSpan={columns.length + (showActive ? 2 : 1)} className="text-center py-12 text-gray-400">No records found.</td></tr>
-            ) : rows.map((row, i) => (
-              <tr key={String(row.id ?? i)} className="border-t border-gray-50 hover:bg-gray-50">
+              <tr><td colSpan={colSpan} className="text-center py-12 text-gray-400">Loading…</td></tr>
+            ) : displayRows.length === 0 ? (
+              <tr><td colSpan={colSpan} className="text-center py-12 text-gray-400">No records found.</td></tr>
+            ) : displayRows.map((row, i) => (
+              <tr
+                key={String(row.id ?? i)}
+                className="border-t border-gray-50 hover:bg-gray-50"
+                draggable={!!onReorder}
+                onDragStart={onReorder ? () => handleDragStart(i) : undefined}
+                onDragOver={onReorder ? e => handleDragOver(e, i) : undefined}
+                onDrop={onReorder ? handleDrop : undefined}
+              >
+                {onReorder && (
+                  <td className="px-3 py-3 cursor-grab text-gray-300 hover:text-gray-500 select-none">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 5.25h16.5m-16.5 6h16.5m-16.5 6h16.5" />
+                    </svg>
+                  </td>
+                )}
                 {columns.map(c => (
                   <td key={c.key} className="px-4 py-3 text-gray-700">
                     {c.render ? c.render(row) : String(row[c.key] ?? '')}
