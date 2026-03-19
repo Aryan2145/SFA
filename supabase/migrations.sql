@@ -692,3 +692,11 @@ UPDATE role_permissions SET can_create = can_edit WHERE can_create = false AND c
 
 ALTER TABLE users DROP CONSTRAINT IF EXISTS users_profile_check;
 ALTER TABLE role_permissions DROP CONSTRAINT IF EXISTS role_permissions_profile_check;
+
+-- ================================================================
+-- role_permissions_data_scope
+-- data_scope column: 'own' | 'team' | 'all'
+-- ================================================================
+ALTER TABLE role_permissions ADD COLUMN IF NOT EXISTS data_scope TEXT NOT NULL DEFAULT 'team';
+UPDATE role_permissions SET data_scope = 'own' WHERE profile = 'Standard';
+UPDATE role_permissions SET data_scope = 'all' WHERE profile = 'Administrator';

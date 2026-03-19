@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   // Seed empty permissions for this new role for all sections
-  const SECTIONS = ['locations', 'business', 'products', 'organization', 'users']
+  const SECTIONS = ['locations', 'business', 'products', 'organization', 'orders', 'leads', 'users']
   await supabase.from('role_permissions').upsert(
     SECTIONS.map(s => ({
       tenant_id: tid,
@@ -52,6 +52,7 @@ export async function POST(req: NextRequest) {
       can_create: false,
       can_edit: false,
       can_delete: false,
+      data_scope: 'own',
     })),
     { onConflict: 'tenant_id,profile,section', ignoreDuplicates: true }
   )

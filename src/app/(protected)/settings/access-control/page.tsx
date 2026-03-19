@@ -23,7 +23,7 @@ type OrgNode = {
   children: OrgNode[]
 }
 type Role = { id: string; name: string; is_system: boolean }
-type SectionPerms = { view: boolean; create: boolean; edit: boolean; delete: boolean }
+type SectionPerms = { view: boolean; create: boolean; edit: boolean; delete: boolean; data_scope: string }
 type PermMap = Record<string, SectionPerms>
 
 // ─────────────────────────────────────────────────────────────────
@@ -97,10 +97,12 @@ const PERM_SECTIONS: { key: string; label: string }[] = [
   { key: 'business', label: 'Business' },
   { key: 'products', label: 'Products' },
   { key: 'organization', label: 'Organization' },
+  { key: 'orders', label: 'Orders' },
+  { key: 'leads', label: 'Leads' },
   { key: 'users', label: 'Users' },
 ]
 
-const EMPTY_PERMS: SectionPerms = { view: false, create: false, edit: false, delete: false }
+const EMPTY_PERMS: SectionPerms = { view: false, create: false, edit: false, delete: false, data_scope: 'own' }
 
 function RolesPermissions() {
   const [roles, setRoles] = useState<Role[]>([])
@@ -127,7 +129,7 @@ function RolesPermissions() {
     if (selectedRole.name === 'Administrator') {
       // Administrator has all permissions — show all as true
       const all: PermMap = {}
-      for (const s of PERM_SECTIONS) all[s.key] = { view: true, create: true, edit: true, delete: true }
+      for (const s of PERM_SECTIONS) all[s.key] = { view: true, create: true, edit: true, delete: true, data_scope: 'all' }
       setPerms(all)
       return
     }
@@ -136,7 +138,7 @@ function RolesPermissions() {
       .then((d: PermMap) => setPerms(d))
   }, [selectedRole])
 
-  async function toggle(section: string, action: keyof SectionPerms, value: boolean) {
+  async function toggle(section: string, action: keyof Omit<SectionPerms, 'data_scope'>, value: boolean) {
     if (!selectedRole || selectedRole.name === 'Administrator') return
     const current = perms[section] ?? EMPTY_PERMS
     let next = { ...current, [action]: value }
@@ -147,20 +149,35 @@ function RolesPermissions() {
 
     setPerms(p => ({ ...p, [section]: next }))
     setSaving(section)
+    await savePerms(section, next)
+    setSaving(null)
+    invalidateMeCache()
+  }
+
+  async function setScope(section: string, data_scope: string) {
+    if (!selectedRole || selectedRole.name === 'Administrator') return
+    const current = perms[section] ?? EMPTY_PERMS
+    const next = { ...current, data_scope }
+    setPerms(p => ({ ...p, [section]: next }))
+    setSaving(section)
+    await savePerms(section, next)
+    setSaving(null)
+  }
+
+  async function savePerms(section: string, p: SectionPerms) {
     await fetch('/api/settings/role-permissions', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        profile: selectedRole.name,
+        profile: selectedRole!.name,
         section,
-        can_view: next.view,
-        can_create: next.create,
-        can_edit: next.edit,
-        can_delete: next.delete,
+        can_view: p.view,
+        can_create: p.create,
+        can_edit: p.edit,
+        can_delete: p.delete,
+        data_scope: p.data_scope,
       }),
     })
-    setSaving(null)
-    invalidateMeCache()
   }
 
   async function handleCreateRole() {
@@ -285,6 +302,7 @@ function RolesPermissions() {
                     <th className="text-center px-4 py-3 font-medium text-gray-600">Create</th>
                     <th className="text-center px-4 py-3 font-medium text-gray-600">Edit</th>
                     <th className="text-center px-4 py-3 font-medium text-gray-600">Delete</th>
+                    <th className="text-center px-4 py-3 font-medium text-gray-600">Data Scope</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -311,6 +329,21 @@ function RolesPermissions() {
                             </button>
                           </td>
                         ))}
+                        <td className="px-4 py-3 text-center">
+                          {isAdmin ? (
+                            <span className="text-xs text-gray-400">All</span>
+                          ) : (
+                            <select
+                              value={p.data_scope}
+                              onChange={e => setScope(s.key, e.target.value)}
+                              className="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"
+                            >
+                              <option value="own">Own</option>
+                              <option value="team">Team</option>
+                              <option value="all">All</option>
+                            </select>
+                          )}
+                        </td>
                       </tr>
                     )
                   })}
