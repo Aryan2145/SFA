@@ -594,6 +594,13 @@ function AddExpenseModal({ onClose, onAdd }: { onClose: () => void; onAdd: (e: P
   const [photoPreview, setPhotoPreview] = useState<string | null>(null)
   const [photoError, setPhotoError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const [expenseCategories, setExpenseCategories] = useState<{ id: string; name: string }[]>([])
+
+  useEffect(() => {
+    fetch('/api/masters/expense-categories').then(r => r.json()).then(d => {
+      if (Array.isArray(d)) setExpenseCategories(d)
+    }).catch(() => {})
+  }, [])
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0] ?? null
@@ -645,15 +652,12 @@ function AddExpenseModal({ onClose, onAdd }: { onClose: () => void; onAdd: (e: P
         </div>
         <div className="px-5 py-4 space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Category <span className="text-red-500">*</span></label>
-            <div className="grid grid-cols-3 gap-2">
-              {EXPENSE_CATEGORIES.map(c => (
-                <button key={c} onClick={() => setCategory(c)}
-                  className={`py-2 text-xs font-medium rounded-lg border-2 transition ${category === c ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600 hover:border-gray-300'}`}>
-                  {c}
-                </button>
-              ))}
-            </div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Category <span className="text-red-500">*</span></label>
+            <select value={category} onChange={e => setCategory(e.target.value)}
+              className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+              <option value="">Select category…</option>
+              {expenseCategories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+            </select>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Amount (₹) <span className="text-red-500">*</span></label>
