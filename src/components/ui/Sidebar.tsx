@@ -96,9 +96,9 @@ const CONVERSATIONS_NAV = {
   ),
 }
 
-interface SidebarProps { open: boolean }
+interface SidebarProps { open: boolean; onClose?: () => void }
 
-export default function Sidebar({ open }: SidebarProps) {
+export default function Sidebar({ open, onClose }: SidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
   const me = useMe()
@@ -142,7 +142,10 @@ export default function Sidebar({ open }: SidebarProps) {
   if (!open) return null
 
   return (
-    <aside className="w-64 shrink-0 bg-white border-r border-gray-200 flex flex-col h-screen sticky top-0">
+    <aside className="
+      fixed inset-y-0 left-0 z-50 w-64 bg-white border-r border-gray-200 flex flex-col h-screen
+      md:static md:z-auto md:shrink-0
+    ">
       {/* Logo */}
       <div className="px-5 py-5">
         <div className="flex items-center gap-3">
@@ -163,7 +166,7 @@ export default function Sidebar({ open }: SidebarProps) {
         <p className="px-3 pb-2 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Navigation</p>
         <div className="space-y-0.5">
           {NAV.map(item => (
-            <Link key={item.href} href={item.href}
+            <Link key={item.href} href={item.href} onClick={onClose}
               className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition
                 ${isActive(item.href)
                   ? 'bg-green-50 text-green-700'
