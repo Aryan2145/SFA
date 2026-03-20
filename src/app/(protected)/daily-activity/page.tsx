@@ -608,19 +608,22 @@ function AddMeetingModal({ onClose, onAdd }: { onClose: () => void; onAdd: (v: P
                     placeholder="Search district, taluka or village…"
                     className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
-                  {placeDropOpen && placeQuery.length >= 1 && (
+                  {placeDropOpen && (
                     <ul className="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
-                      {placeOptions.filter(o => o.label.toLowerCase().includes(placeQuery.toLowerCase())).slice(0, 50).length === 0 ? (
-                        <li className="px-3 py-2 text-sm text-gray-400">No matches</li>
-                      ) : (
-                        placeOptions.filter(o => o.label.toLowerCase().includes(placeQuery.toLowerCase())).slice(0, 50).map(o => (
-                          <li key={o.value}
-                            onMouseDown={() => handlePlaceSelect(o.value)}
-                            className="px-3 py-2 text-sm cursor-pointer hover:bg-blue-50 hover:text-blue-700">
-                            {o.label}
-                          </li>
-                        ))
-                      )}
+                      {(() => {
+                        const filtered = placeQuery
+                          ? placeOptions.filter(o => o.label.toLowerCase().includes(placeQuery.toLowerCase())).slice(0, 50)
+                          : placeOptions.slice(0, 50)
+                        return filtered.length === 0
+                          ? <li className="px-3 py-2 text-sm text-gray-400">No matches</li>
+                          : filtered.map(o => (
+                              <li key={o.value}
+                                onMouseDown={() => handlePlaceSelect(o.value)}
+                                className="px-3 py-2 text-sm cursor-pointer hover:bg-blue-50 hover:text-blue-700">
+                                {o.label}
+                              </li>
+                            ))
+                      })()}
                     </ul>
                   )}
                 </div>
