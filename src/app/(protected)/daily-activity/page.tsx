@@ -1186,6 +1186,7 @@ function DailyActivityInner() {
   const [visitLoading, setVisitLoading] = useState(true)
   const [acting, setActing] = useState(false)
   const [showMeetingModal, setShowMeetingModal] = useState(false)
+  const [locationDenied, setLocationDenied] = useState<{ visitId: string; action: 'start' | 'stop' } | null>(null)
   const [orderEntry, setOrderEntry] = useState<Visit | null>(null)
 
   // Expenses (loaded by ExpensesTab but also needed for Summary)
@@ -1280,8 +1281,14 @@ function DailyActivityInner() {
         const geoData = await geo.json()
         address = geoData.display_name ?? null
       } catch { /* ignore */ }
-    } catch {
-      toast('Location unavailable — starting without GPS', 'info')
+    } catch (err) {
+      const code = (err as GeolocationPositionError)?.code
+      if (code === 1 /* PERMISSION_DENIED */) {
+        setActing(false)
+        setLocationDenied({ visitId: id, action: 'start' })
+        return
+      }
+      // Timeout or unavailable — proceed without GPS
     }
     const r = await fetch(`/api/daily-activity/${id}`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
@@ -1308,8 +1315,14 @@ function DailyActivityInner() {
         const geoData = await geo.json()
         end_address = geoData.display_name ?? null
       } catch { /* ignore */ }
-    } catch {
-      toast('Location unavailable — stopping without GPS', 'info')
+    } catch (err) {
+      const code = (err as GeolocationPositionError)?.code
+      if (code === 1 /* PERMISSION_DENIED */) {
+        setActing(false)
+        setLocationDenied({ visitId: id, action: 'stop' })
+        return
+      }
+      // Timeout or unavailable — proceed without GPS
     }
     const r = await fetch(`/api/daily-activity/${id}`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
@@ -1457,6 +1470,68 @@ function DailyActivityInner() {
       {/* Modals */}
       {showMeetingModal && <AddMeetingModal onClose={() => setShowMeetingModal(false)} onAdd={handleAdd} />}
       {orderEntry && <OrderEntryModal visit={orderEntry} onClose={() => setOrderEntry(null)} onSaved={loadVisits} />}
+
+      {/* Location permission denied modal */}
+      {locationDenied && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div className="absolute inset-0 bg-black/40" />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+            <div className="flex flex-col items-center text-center gap-3 mb-5">
+              <div className="w-14 h-14 rounded-full bg-red-50 flex items-center justify-center">
+                <svg className="w-7 h-7 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.8}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3m0 3h.01" className="text-red-400" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="font-semibold text-gray-900 text-base">Location Access Blocked</h3>
+                <p className="text-sm text-gray-500 mt-1">
+                  Your browser has blocked location access. The meeting won&apos;t have GPS coordinates unless you enable it.
+                </p>
+              </div>
+              <div className="w-full bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-left text-xs text-amber-800 space-y-1">
+                <p className="font-semibold">How to enable location:</p>
+                <p>• Tap the lock / info icon in your browser&apos;s address bar</p>
+                <p>• Find <strong>Location</strong> and set it to <strong>Allow</strong></p>
+                <p>• Then tap <strong>Try Again</strong> below</p>
+              </div>
+            </div>
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={() => {
+                  const { visitId, action } = locationDenied
+                  setLocationDenied(null)
+                  if (action === 'start') handleStart(visitId)
+                  else handleStop(visitId)
+                }}
+                className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-medium transition"
+              >
+                Try Again
+              </button>
+              <button
+                onClick={async () => {
+                  const { visitId, action } = locationDenied
+                  setLocationDenied(null)
+                  setActing(true)
+                  const body = action === 'start'
+                    ? { action: 'start', latitude: null, longitude: null, address: null }
+                    : { action: 'stop', end_latitude: null, end_longitude: null, end_address: null }
+                  const r = await fetch(`/api/daily-activity/${visitId}`, {
+                    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body),
+                  })
+                  if (!r.ok) { toast((await r.json()).error, 'error') } else { loadVisits() }
+                  setActing(false)
+                }}
+                className="w-full py-2.5 border border-gray-300 text-gray-600 hover:bg-gray-50 rounded-xl text-sm font-medium transition"
+              >
+                {locationDenied.action === 'start' ? 'Start Without Location' : 'Stop Without Location'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Remarks Panel */}
       {remarksPanel && (
