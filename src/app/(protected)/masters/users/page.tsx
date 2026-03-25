@@ -43,7 +43,7 @@ const COLS: Column[] = [
 const INIT = { name: '', email: '', contact: '', password: '', department_id: '', designation_id: '', level_id: '', profile: 'Standard', manager_user_id: '' }
 
 export default function UsersPage() {
-  const crud = useCrud('/api/masters/users')
+  const crud = useCrud('/api/masters/users', { scope: 'manage' })
   const me = useMe()
   const isAdmin = me?.role === 'Administrator'
   const canEdit = isAdmin || (me?.permissions?.users?.edit ?? false)

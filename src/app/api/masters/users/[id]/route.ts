@@ -12,6 +12,47 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   const supabase = createServerSupabase()
   const tid = getTenantId()
 
+  // Fetch existing user + acting user's level in parallel
+  const [existingResult, actingResult] = await Promise.all([
+    supabase.from('users').select('name, profile, manager_user_id, level_id, levels(level_no)').eq('id', params.id).eq('tenant_id', tid).single(),
+    user.userId ? supabase.from('users').select('levels(level_no)').eq('id', user.userId).single() : Promise.resolve({ data: null }),
+  ])
+  const existing = existingResult.data
+  const oldManagerId = existing?.manager_user_id ?? null
+  const targetLevelNo = (existing?.levels as { level_no: number } | null)?.level_no ?? null
+  const actingLevelNo = (actingResult.data?.levels as { level_no: number } | null)?.level_no ?? null
+
+  // Self-edit restrictions
+  if (params.id === user.userId) {
+    if (body.level_id && body.level_id !== existing?.level_id)
+      return NextResponse.json(
+        { error: user.role === 'Administrator' ? 'Administrators cannot change their own level' : 'You cannot change your own level' },
+        { status: 400 }
+      )
+    if (body.profile && body.profile !== existing?.profile)
+      return NextResponse.json(
+        { error: user.role === 'Administrator' ? 'Administrators cannot change their own role' : 'You cannot change your own role' },
+        { status: 400 }
+      )
+    if ('manager_user_id' in body && (body.manager_user_id || null) !== (existing?.manager_user_id || null))
+      return NextResponse.json({ error: 'You cannot change your own hierarchy position' }, { status: 400 })
+  }
+
+  // Level hierarchy check: cannot edit users at same or higher authority level
+  if (params.id !== user.userId && actingLevelNo !== null && targetLevelNo !== null && targetLevelNo <= actingLevelNo)
+    return NextResponse.json(
+      { error: 'You can only manage users at lower authority levels than yourself' },
+      { status: 403 }
+    )
+
+  // Only admins can change level or role
+  if (user.role !== 'Administrator') {
+    if (body.level_id && body.level_id !== existing?.level_id)
+      return NextResponse.json({ error: 'Only Administrators can change a user\'s level' }, { status: 403 })
+    if (body.profile && body.profile !== existing?.profile)
+      return NextResponse.json({ error: 'Only Administrators can change a user\'s role' }, { status: 403 })
+  }
+
   // Level-based manager validation: manager must have a strictly lower level_no
   if (body.manager_user_id && body.level_id) {
     const { data: userLevel } = await supabase.from('levels').select('level_no').eq('id', body.level_id).single()
@@ -23,11 +64,6 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         return NextResponse.json({ error: 'Manager must be at a higher level than the user' }, { status: 400 })
     }
   }
-
-  // Fetch existing values before update for audit diff
-  const { data: existing } = await supabase
-    .from('users').select('name, profile, manager_user_id').eq('id', params.id).single()
-  const oldManagerId = existing?.manager_user_id ?? null
 
   const { data, error } = await supabase
     .from('users').update(body).eq('id', params.id).eq('tenant_id', tid).select().single()
@@ -96,9 +132,20 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       )
   }
 
-  const { data: targetUser } = await supabase
-    .from('users').select('name, profile').eq('id', params.id).eq('tenant_id', tid).single()
+  const [{ data: targetUser }, { data: actingUserForPatch }] = await Promise.all([
+    supabase.from('users').select('name, profile, levels(level_no)').eq('id', params.id).eq('tenant_id', tid).single(),
+    u.userId ? supabase.from('users').select('levels(level_no)').eq('id', u.userId).single() : Promise.resolve({ data: null }),
+  ])
   if (!targetUser) return NextResponse.json({ error: 'User not found' }, { status: 404 })
+
+  // Level hierarchy check: cannot deactivate/reactivate users at same or higher authority level
+  const patchActingLevelNo = (actingUserForPatch?.levels as { level_no: number } | null)?.level_no ?? null
+  const patchTargetLevelNo = (targetUser?.levels as { level_no: number } | null)?.level_no ?? null
+  if (params.id !== u.userId && patchActingLevelNo !== null && patchTargetLevelNo !== null && patchTargetLevelNo <= patchActingLevelNo)
+    return NextResponse.json(
+      { error: 'You can only deactivate or reactivate users at lower authority levels than yourself' },
+      { status: 403 }
+    )
 
   // Block deactivating the last active Administrator
   if (action === 'deactivate' && targetUser.profile === 'Administrator') {

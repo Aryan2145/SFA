@@ -9,12 +9,28 @@ export async function GET(req: NextRequest) {
   const user = await requireUser()
   if (!await checkPermission(user, 'users', 'view')) return forbidden()
   const q = req.nextUrl.searchParams.get('q') ?? ''
+  const scope = req.nextUrl.searchParams.get('scope')
   const supabase = createServerSupabase()
   const tid = getTenantId()
   let query = supabase.from('users')
     .select('*, departments(name), designations(name), levels(level_no, name), manager:manager_user_id(id, name)')
     .eq('tenant_id', tid).order('name')
   if (q) query = query.or(`name.ilike.%${q}%,email.ilike.%${q}%,contact.ilike.%${q}%`)
+
+  // scope=manage: only return users at lower authority levels (higher level_no)
+  if (scope === 'manage' && user.userId) {
+    const { data: actingUser } = await supabase
+      .from('users').select('levels(level_no)').eq('id', user.userId).single()
+    const actingLevelNo = (actingUser?.levels as { level_no: number } | null)?.level_no ?? null
+    if (actingLevelNo !== null) {
+      const { data: subordinateLevels } = await supabase
+        .from('levels').select('id').eq('tenant_id', tid).gt('level_no', actingLevelNo)
+      const subordinateLevelIds = (subordinateLevels ?? []).map((l: { id: string }) => l.id)
+      if (subordinateLevelIds.length === 0) return NextResponse.json([])
+      query = query.in('level_id', subordinateLevelIds)
+    }
+  }
+
   const { data, error } = await query
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json(data)
@@ -30,9 +46,25 @@ export async function POST(req: NextRequest) {
   if (!password?.trim()) return NextResponse.json({ error: 'Password is required' }, { status: 400 })
   if (!level_id) return NextResponse.json({ error: 'Level is required' }, { status: 400 })
   if (!profile) return NextResponse.json({ error: 'Profile is required' }, { status: 400 })
+  if (user.role !== 'Administrator')
+    return NextResponse.json({ error: 'Only Administrators can create users' }, { status: 403 })
 
   const supabase = createServerSupabase()
   const tid = getTenantId()
+
+  // Acting user must have higher authority (lower level_no) than the user being created
+  if (user.userId) {
+    const [{ data: actingUser }, { data: targetLevel }] = await Promise.all([
+      supabase.from('users').select('levels(level_no)').eq('id', user.userId).single(),
+      supabase.from('levels').select('level_no').eq('id', level_id).single(),
+    ])
+    const actingLevelNo = (actingUser?.levels as { level_no: number } | null)?.level_no ?? null
+    if (actingLevelNo !== null && targetLevel && targetLevel.level_no <= actingLevelNo)
+      return NextResponse.json(
+        { error: 'You can only create users at lower authority levels than yourself' },
+        { status: 403 }
+      )
+  }
 
   // License cap enforcement
   const [{ count: userCount }, { data: tenant }] = await Promise.all([
