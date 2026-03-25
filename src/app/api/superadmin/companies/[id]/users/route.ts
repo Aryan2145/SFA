@@ -40,7 +40,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     supabase.from('users').select('id, name, contact, email, status, profile, level_id, created_at').eq('tenant_id', tid).order('name'),
     supabase.from('user_login_logs').select('user_id, logged_in_at').eq('tenant_id', tid).gte('logged_in_at', ago30),
     supabase.from('daily_visits').select('user_id, created_at, status').eq('tenant_id', tid).gte('created_at', ago30),
-    supabase.from('orders').select('user_id, created_at, total_amount').eq('tenant_id', tid).gte('created_at', ago30),
+    supabase.from('orders').select('user_id, created_at').eq('tenant_id', tid).gte('created_at', ago30),
     supabase.from('expenses').select('user_id, created_at, amount').eq('tenant_id', tid).gte('created_at', ago30),
     supabase.from('contextual_remarks').select('author_user_id, created_at').eq('tenant_id', tid).gte('created_at', ago30),
     supabase.from('weekly_plan_audit_logs').select('actor_user_id, timestamp').eq('tenant_id', tid).eq('action_type', 'submit').gte('timestamp', ago30),
@@ -91,7 +91,6 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     const meetings30d  = activity.filter(a => a.type === 'meeting' && a.ts >= ago30)
     const meetingsCompleted30d = (visits ?? []).filter(v => v.user_id === u.id && v.status === 'Completed' && v.created_at >= ago30).length
     const orders30d    = activity.filter(a => a.type === 'order'   && a.ts >= ago30).length
-    const ordersValue30d = (orders ?? []).filter(o => o.user_id === u.id && o.created_at >= ago30).reduce((s, o) => s + (Number(o.total_amount) || 0), 0)
     const expenses30d  = activity.filter(a => a.type === 'expense' && a.ts >= ago30).length
     const plans30d     = activity.filter(a => a.type === 'plan'    && a.ts >= ago30).length
     const remarks30d   = activity.filter(a => a.type === 'remark'  && a.ts >= ago30).length
@@ -122,7 +121,6 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
       meetings_30d:           meetings30d.length,
       meetings_completed_30d: meetingsCompleted30d,
       orders_30d:             orders30d,
-      orders_value_30d:       Math.round(ordersValue30d),
       expenses_30d:           expenses30d,
       plans_submitted_30d:    plans30d,
       remarks_30d:            remarks30d,
@@ -150,7 +148,6 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     last_activity: u => u.last_activity ?? '',
     score_30d:     u => u.activity_score_30d,
     logins_30d:    u => u.logins_30d,
-    orders_value:  u => u.orders_value_30d,
   }
   const sortFn = SORT_KEYS[sortBy] ?? SORT_KEYS.last_login
   filtered.sort((a, b) => {

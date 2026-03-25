@@ -31,7 +31,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     supabase.from('users').select('id, name, status').eq('tenant_id', tid),
     supabase.from('user_login_logs').select('user_id, logged_in_at').eq('tenant_id', tid).gte('logged_in_at', ago30),
     supabase.from('daily_visits').select('user_id, created_at, status').eq('tenant_id', tid).gte('created_at', ago30),
-    supabase.from('orders').select('user_id, created_at, total_amount').eq('tenant_id', tid).gte('created_at', ago30),
+    supabase.from('orders').select('user_id, created_at').eq('tenant_id', tid).gte('created_at', ago30),
     supabase.from('expenses').select('user_id, created_at').eq('tenant_id', tid).gte('created_at', ago30),
     supabase.from('contextual_remarks').select('author_user_id, created_at').eq('tenant_id', tid).gte('created_at', ago30),
     supabase.from('weekly_plan_audit_logs').select('actor_user_id, timestamp').eq('tenant_id', tid).eq('action_type', 'submit').gte('timestamp', ago30),

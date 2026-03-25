@@ -27,7 +27,7 @@ type UserRow = {
   last_activity: string | null
   activity_score_7d: number; activity_score_30d: number
   meetings_30d: number; meetings_completed_30d: number
-  orders_30d: number; orders_value_30d: number
+  orders_30d: number
   expenses_30d: number; plans_submitted_30d: number; remarks_30d: number
   classification: string
 }
@@ -65,13 +65,75 @@ function fmtDate(ts: string | null) {
   return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
 }
 
-function fmtCurrency(n: number) {
-  if (n >= 100000) return `₹${(n / 100000).toFixed(1)}L`
-  if (n >= 1000)   return `₹${(n / 1000).toFixed(1)}K`
-  return `₹${n}`
-}
-
 // ── Sub-components ────────────────────────────────────────────────────────────
+
+function InfoPanel() {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="bg-blue-50 border border-blue-200 rounded-xl overflow-hidden">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center gap-2.5 px-4 py-3 text-left hover:bg-blue-100/60 transition-colors"
+      >
+        <svg className="w-4 h-4 text-blue-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 100 20A10 10 0 0012 2z" />
+        </svg>
+        <span className="text-sm font-medium text-blue-800 flex-1">How are scores and classifications calculated?</span>
+        <svg className={`w-4 h-4 text-blue-400 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      {open && (
+        <div className="px-4 pb-4 space-y-4">
+          {/* Points system */}
+          <div>
+            <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-2">Activity Score — Weighted Points</p>
+            <p className="text-xs text-blue-700 mb-2">Every action a user takes earns points. The <strong>30-day score</strong> is used for ranking and classification.</p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {[
+                { action: 'Meeting completed',      pts: 3, icon: '✓' },
+                { action: 'Order created',           pts: 3, icon: '🛒' },
+                { action: 'Weekly plan submitted',   pts: 2, icon: '📋' },
+                { action: 'Meeting created',         pts: 1, icon: '📍' },
+                { action: 'Expense logged',          pts: 1, icon: '💸' },
+                { action: 'Comment posted',          pts: 1, icon: '💬' },
+              ].map(r => (
+                <div key={r.action} className="flex items-center gap-2 bg-white rounded-lg px-3 py-2 border border-blue-100">
+                  <span className="text-sm">{r.icon}</span>
+                  <span className="text-xs text-gray-600 flex-1">{r.action}</span>
+                  <span className="text-xs font-bold text-blue-700">+{r.pts}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Classification thresholds */}
+          <div>
+            <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-2">Classification Thresholds</p>
+            <div className="space-y-2">
+              {[
+                { cls: 'actively_using',  label: 'Actively Using',   rule: 'Logged in within 7 days AND score ≥ 5 in last 7 days' },
+                { cls: 'passive',         label: 'Passive',           rule: 'Logged in within 14 days BUT score < 5 in last 7 days — present but not productive' },
+                { cls: 'low_usage',       label: 'Low Usage',         rule: 'Score ≥ 1 in last 30 days but does not meet active/passive criteria' },
+                { cls: 'dormant_enabled', label: 'Dormant (Enabled)', rule: 'Account status is Active but no login and no activity in last 30 days — paying seat, zero use' },
+                { cls: 'not_using',       label: 'Not Using',         rule: 'No login and no activity in last 30 days, account is Inactive or conditions for other classes not met' },
+              ].map(r => (
+                <div key={r.cls} className="flex items-start gap-3 bg-white rounded-lg px-3 py-2 border border-blue-100">
+                  <span className={`mt-0.5 shrink-0 inline-flex px-2 py-0.5 rounded-full text-[11px] font-medium ${CLS_STYLES[r.cls]}`}>
+                    {r.label}
+                  </span>
+                  <span className="text-xs text-gray-500 leading-relaxed">{r.rule}</span>
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-blue-600 mt-2 italic">Classifications are re-evaluated on every page load. Data reflects the last 30 days.</p>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 
 function SummaryCard({ label, value, sub, color = 'text-gray-900' }: {
   label: string; value: string | number; sub?: string; color?: string
@@ -141,6 +203,8 @@ function AnalyticsTab({ companyId }: { companyId: string }) {
 
   return (
     <div className="space-y-6">
+      <InfoPanel />
+
       {/* Summary cards */}
       {loadingS ? (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -270,10 +334,10 @@ function AnalyticsTab({ companyId }: { companyId: string }) {
                   Score 30d {sortBy === 'score_30d' ? (sortOrder === 'desc' ? '↓' : '↑') : ''}
                 </th>
                 <th className="text-right px-4 py-3">Logins 30d</th>
-                <th className="text-right px-4 py-3 cursor-pointer hover:text-gray-700" onClick={() => toggleSort('orders_value')}>
-                  Orders {sortBy === 'orders_value' ? (sortOrder === 'desc' ? '↓' : '↑') : ''}
-                </th>
                 <th className="text-right px-4 py-3">Meetings</th>
+                <th className="text-right px-4 py-3">Orders</th>
+                <th className="text-right px-4 py-3">Expenses</th>
+                <th className="text-right px-4 py-3">Plans</th>
                 <th className="text-left px-4 py-3">Classification</th>
               </tr>
             </thead>
@@ -281,7 +345,7 @@ function AnalyticsTab({ companyId }: { companyId: string }) {
               {loadingU ? (
                 Array.from({ length: 5 }).map((_, i) => (
                   <tr key={i}>
-                    {Array.from({ length: 9 }).map((__, j) => (
+                    {Array.from({ length: 10 }).map((__, j) => (
                       <td key={j} className="px-4 py-3">
                         <div className="h-3 bg-gray-100 rounded animate-pulse" />
                       </td>
@@ -289,7 +353,7 @@ function AnalyticsTab({ companyId }: { companyId: string }) {
                   </tr>
                 ))
               ) : users.length === 0 ? (
-                <tr><td colSpan={9} className="px-4 py-10 text-center text-sm text-gray-400">No users found</td></tr>
+                <tr><td colSpan={10} className="px-4 py-10 text-center text-sm text-gray-400">No users found</td></tr>
               ) : (
                 users.map(u => (
                   <tr key={u.id} className="hover:bg-gray-50 transition-colors">
@@ -314,15 +378,12 @@ function AnalyticsTab({ companyId }: { companyId: string }) {
                     </td>
                     <td className="px-4 py-3 text-right text-gray-600">{u.logins_30d}</td>
                     <td className="px-4 py-3 text-right">
-                      <div className="text-gray-700 font-medium">{u.orders_30d > 0 ? fmtCurrency(u.orders_value_30d) : '—'}</div>
-                      {u.orders_30d > 0 && <div className="text-xs text-gray-400">{u.orders_30d} orders</div>}
-                    </td>
-                    <td className="px-4 py-3 text-right">
                       <div className="text-gray-700">{u.meetings_30d > 0 ? u.meetings_30d : '—'}</div>
-                      {u.meetings_completed_30d > 0 && (
-                        <div className="text-xs text-gray-400">{u.meetings_completed_30d} done</div>
-                      )}
+                      {u.meetings_completed_30d > 0 && <div className="text-xs text-gray-400">{u.meetings_completed_30d} done</div>}
                     </td>
+                    <td className="px-4 py-3 text-right text-gray-700">{u.orders_30d > 0 ? u.orders_30d : '—'}</td>
+                    <td className="px-4 py-3 text-right text-gray-700">{u.expenses_30d > 0 ? u.expenses_30d : '—'}</td>
+                    <td className="px-4 py-3 text-right text-gray-700">{u.plans_submitted_30d > 0 ? u.plans_submitted_30d : '—'}</td>
                     <td className="px-4 py-3"><ClassBadge cls={u.classification} /></td>
                   </tr>
                 ))
