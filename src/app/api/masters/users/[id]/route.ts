@@ -100,6 +100,18 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     .from('users').select('name, profile').eq('id', params.id).eq('tenant_id', tid).single()
   if (!targetUser) return NextResponse.json({ error: 'User not found' }, { status: 404 })
 
+  // Block deactivating the last active Administrator
+  if (action === 'deactivate' && targetUser.profile === 'Administrator') {
+    const { count: activeAdminCount } = await supabase
+      .from('users').select('id', { count: 'exact', head: true })
+      .eq('tenant_id', tid).eq('profile', 'Administrator').eq('status', 'Active')
+    if ((activeAdminCount ?? 0) <= 1)
+      return NextResponse.json(
+        { error: 'Cannot deactivate the only active Administrator. Assign another Administrator first.' },
+        { status: 400 }
+      )
+  }
+
   const updatePayload: Record<string, unknown> = { status: action === 'deactivate' ? 'Inactive' : 'Active' }
   // For reactivate, optionally update profile and manager
   if (action === 'reactivate') {
