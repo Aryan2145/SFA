@@ -360,7 +360,7 @@ export default function UsersPage() {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Level <span className="text-red-500">*</span></label>
-            <SearchableSelect value={form.level_id} onChange={v => setForm(f => ({ ...f, level_id: v, manager_user_id: '' }))} options={levels.map(l => ({ value: l.id, label: l.name }))} placeholder="Select level…" />
+            <SearchableSelect value={form.level_id} onChange={v => setForm(f => ({ ...f, level_id: v, manager_user_id: '' }))} options={levels.map(l => ({ value: l.id, label: `L${l.level_no} - ${l.name}` }))} placeholder="Select level…" />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Profile <span className="text-red-500">*</span></label>
