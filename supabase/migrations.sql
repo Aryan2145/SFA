@@ -723,3 +723,22 @@ CREATE INDEX IF NOT EXISTS idx_ull_tenant_time
   ON user_login_logs (tenant_id, logged_in_at DESC);
 
 ALTER TABLE user_login_logs ENABLE ROW LEVEL SECURITY;
+
+-- ================================================================
+-- user_audit_logs
+-- Immutable log of user account lifecycle events (read-only by design)
+-- ================================================================
+CREATE TABLE IF NOT EXISTS user_audit_logs (
+  id                    UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id             UUID        NOT NULL,
+  target_user_id        UUID        NOT NULL,
+  target_user_name      TEXT        NOT NULL,
+  action                TEXT        NOT NULL,  -- created | deactivated | reactivated | role_changed | name_changed
+  performed_by_user_id  UUID,
+  performed_by_name     TEXT        NOT NULL DEFAULT '',
+  metadata              JSONB       NOT NULL DEFAULT '{}',
+  created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_ual_tenant_time ON user_audit_logs (tenant_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_ual_target_user ON user_audit_logs (tenant_id, target_user_id, created_at DESC);
+ALTER TABLE user_audit_logs ENABLE ROW LEVEL SECURITY;

@@ -9,7 +9,7 @@ export async function GET() {
   const tid = getTenantId()
 
   const [{ count }, { data: tenant }] = await Promise.all([
-    supabase.from('users').select('*', { count: 'exact', head: true }).eq('tenant_id', tid),
+    supabase.from('users').select('*', { count: 'exact', head: true }).eq('tenant_id', tid).eq('status', 'Active'),
     supabase.from('tenants').select('license_count').eq('id', tid).single(),
   ])
 

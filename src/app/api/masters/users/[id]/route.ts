@@ -24,9 +24,9 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     }
   }
 
-  // Fetch existing manager before update so we can diff
+  // Fetch existing values before update for audit diff
   const { data: existing } = await supabase
-    .from('users').select('manager_user_id').eq('id', params.id).single()
+    .from('users').select('name, profile, manager_user_id').eq('id', params.id).single()
   const oldManagerId = existing?.manager_user_id ?? null
 
   const { data, error } = await supabase
@@ -35,6 +35,24 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     if (error.code === '23505' && error.message.includes('users_tenant_contact'))
       return NextResponse.json({ error: 'Number already registered. Please use a different contact number.' }, { status: 400 })
     return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
+  // Audit: log role and name changes
+  if (existing && data) {
+    if (body.profile && body.profile !== existing.profile) {
+      void supabase.from('user_audit_logs').insert({
+        tenant_id: tid, target_user_id: params.id, target_user_name: data.name,
+        action: 'role_changed', performed_by_user_id: user.userId, performed_by_name: user.name,
+        metadata: { from: existing.profile, to: body.profile },
+      })
+    }
+    if (body.name && body.name !== existing.name) {
+      void supabase.from('user_audit_logs').insert({
+        tenant_id: tid, target_user_id: params.id, target_user_name: data.name,
+        action: 'name_changed', performed_by_user_id: user.userId, performed_by_name: user.name,
+        metadata: { from: existing.name, to: body.name },
+      })
+    }
   }
 
   // Sync user_visibility when manager changes
@@ -51,6 +69,61 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   }
 
   return NextResponse.json(data)
+}
+
+export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+  const u = await requireUser()
+  if (!await checkPermission(u, 'users', 'edit')) return forbidden()
+
+  const body = await req.json()
+  const { action } = body
+  if (!['deactivate', 'reactivate'].includes(action))
+    return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
+
+  const supabase = createServerSupabase()
+  const tid = getTenantId()
+
+  if (action === 'reactivate') {
+    // License cap: only Active users consume a seat
+    const [{ count: activeCount }, { data: tenant }] = await Promise.all([
+      supabase.from('users').select('id', { count: 'exact', head: true }).eq('tenant_id', tid).eq('status', 'Active'),
+      supabase.from('tenants').select('license_count').eq('id', tid).single(),
+    ])
+    if (tenant && activeCount !== null && activeCount >= tenant.license_count)
+      return NextResponse.json(
+        { error: 'All licensed seats are in use. Deactivate an existing user to free a seat.' },
+        { status: 403 }
+      )
+  }
+
+  const { data: targetUser } = await supabase
+    .from('users').select('name, profile').eq('id', params.id).eq('tenant_id', tid).single()
+  if (!targetUser) return NextResponse.json({ error: 'User not found' }, { status: 404 })
+
+  const updatePayload: Record<string, unknown> = { status: action === 'deactivate' ? 'Inactive' : 'Active' }
+  // For reactivate, optionally update profile and manager
+  if (action === 'reactivate') {
+    if (body.profile) updatePayload.profile = body.profile
+    if ('manager_user_id' in body) updatePayload.manager_user_id = body.manager_user_id || null
+  }
+
+  const { error } = await supabase
+    .from('users').update(updatePayload).eq('id', params.id).eq('tenant_id', tid)
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  void supabase.from('user_audit_logs').insert({
+    tenant_id: tid,
+    target_user_id: params.id,
+    target_user_name: targetUser.name,
+    action: action === 'deactivate' ? 'deactivated' : 'reactivated',
+    performed_by_user_id: u.userId,
+    performed_by_name: u.name,
+    metadata: action === 'reactivate' && body.profile && body.profile !== targetUser.profile
+      ? { role_updated_to: body.profile }
+      : {},
+  })
+
+  return NextResponse.json({ ok: true })
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {

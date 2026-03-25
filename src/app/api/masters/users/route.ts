@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
 
   // License cap enforcement
   const [{ count: userCount }, { data: tenant }] = await Promise.all([
-    supabase.from('users').select('*', { count: 'exact', head: true }).eq('tenant_id', tid),
+    supabase.from('users').select('*', { count: 'exact', head: true }).eq('tenant_id', tid).eq('status', 'Active'),
     supabase.from('tenants').select('license_count').eq('id', tid).single(),
   ])
   if (tenant && userCount !== null && userCount >= tenant.license_count) {
@@ -73,6 +73,17 @@ export async function POST(req: NextRequest) {
   if (manager_user_id && data) {
     await cascadeVisibilityUp(supabase, tid, data.id, manager_user_id)
   }
+
+  // Audit log
+  void supabase.from('user_audit_logs').insert({
+    tenant_id: tid,
+    target_user_id: data.id,
+    target_user_name: data.name,
+    action: 'created',
+    performed_by_user_id: user.userId,
+    performed_by_name: user.name,
+    metadata: { profile },
+  })
 
   return NextResponse.json(data, { status: 201 })
 }

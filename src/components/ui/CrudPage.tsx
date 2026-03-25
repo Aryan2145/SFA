@@ -26,6 +26,7 @@ interface CrudPageProps {
   onAdd?: () => void
   onEdit?: (row: Record<string, unknown>) => void
   onDelete?: (row: Record<string, unknown>) => void
+  rowActions?: (row: Record<string, unknown>) => ReactNode
   onToggleActive?: (row: Record<string, unknown>, val: boolean) => void
   /** When provided, rows get a drag handle and can be reordered. Receives the full new order. */
   onReorder?: (newRows: Record<string, unknown>[]) => void
@@ -36,7 +37,7 @@ interface CrudPageProps {
 
 export default function CrudPage({
   title, headerExtra, backHref, columns, rows, allRowsCount, isLoading, search, onSearchChange,
-  page, totalPages, onPage, onAdd, onEdit, onDelete, onToggleActive, onReorder,
+  page, totalPages, onPage, onAdd, onEdit, onDelete, rowActions, onToggleActive, onReorder,
   showActive = true, addLabel = '+ Add', filterBar,
 }: CrudPageProps) {
   // Local ordered rows for drag-and-drop (only used when onReorder is set)
@@ -146,6 +147,7 @@ export default function CrudPage({
                     {onEdit && (
                       <button onClick={() => onEdit(row)} className="text-blue-600 hover:text-blue-800 text-xs font-medium">Edit</button>
                     )}
+                    {rowActions?.(row)}
                     {onDelete && (
                       <button
                         onClick={() => { if (confirm('Delete this record?')) onDelete(row) }}
