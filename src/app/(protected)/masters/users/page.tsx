@@ -132,6 +132,7 @@ export default function UsersPage() {
     if (!form.name.trim()) { setFormError('Full name is required'); return }
     if (!form.email.trim()) { setFormError('Email is required'); return }
     if (!form.contact.trim()) { setFormError('Contact number is required'); return }
+    if (!/^\d{10}$/.test(form.contact.trim())) { setFormError('Contact number must be exactly 10 digits'); return }
     if (!form.level_id) { setFormError('Level is required'); return }
     if (!form.profile) { setFormError('Profile is required'); return }
     if (!editing && !form.password.trim()) { setFormError('Password is required for new users'); return }

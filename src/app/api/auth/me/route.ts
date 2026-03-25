@@ -44,17 +44,17 @@ export async function GET() {
       : Promise.resolve({ count: 0 }),
     supabase
       .from('role_permissions')
-      .select('section, can_view, can_edit, can_delete')
+      .select('section, can_view, can_create, can_edit, can_delete')
       .eq('tenant_id', tid)
       .eq('profile', user.role),
   ])
 
   const permissions: Permissions = { ...allFalse }
-  for (const row of (permResult as { data: { section: string; can_view: boolean; can_edit: boolean; can_delete: boolean }[] | null }).data ?? []) {
+  for (const row of (permResult as { data: { section: string; can_view: boolean; can_create: boolean; can_edit: boolean; can_delete: boolean }[] | null }).data ?? []) {
     if ((SECTIONS as readonly string[]).includes(row.section)) {
       permissions[row.section as Section] = {
         view: row.can_view,
-        edit: row.can_edit,
+        edit: row.can_edit || row.can_create,   // create implies ability to use Add button
         delete: row.can_delete,
       }
     }
