@@ -166,7 +166,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
         <p className="px-3 pb-2 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Navigation</p>
         <div className="space-y-0.5">
           {NAV.map(item => (
-            <Link key={item.href} href={item.href} onClick={onClose}
+            <Link key={item.href} href={item.href} onClick={() => { if (window.innerWidth < 768) onClose?.() }}
               className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition
                 ${isActive(item.href)
                   ? 'bg-green-50 text-green-700'

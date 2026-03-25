@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import CrudPage, { Column } from '@/components/ui/CrudPage'
 import Modal from '@/components/ui/Modal'
 import SearchableSelect from '@/components/ui/SearchableSelect'
@@ -43,6 +43,8 @@ export default function UsersPage() {
   const [allUsers, setAllUsers] = useState<UserRow[]>([])
   const [license, setLicense] = useState<{ used: number; limit: number | null } | null>(null)
   const [limitError, setLimitError] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const deleteErrorTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     fetch('/api/masters/levels').then(r => r.json()).then(setLevels)
@@ -77,6 +79,21 @@ export default function UsersPage() {
     setShowPassword(false)
     setForm({ name: String(row.name), email: String(row.email), contact: String(row.contact), password: '', department_id: String(row.department_id ?? ''), designation_id: String(row.designation_id ?? ''), level_id: String(row.level_id), profile: String(row.profile), manager_user_id: String(row.manager_user_id ?? ''), status: String(row.status) })
     setOpen(true)
+  }
+
+  async function handleDelete(row: Record<string, unknown>) {
+    const res = await fetch(`/api/masters/users/${row.id as string}`, { method: 'DELETE' })
+    const data = await res.json()
+    if (!res.ok) {
+      const msg = data.error ?? 'Delete failed'
+      setDeleteError(msg)
+      if (deleteErrorTimer.current) clearTimeout(deleteErrorTimer.current)
+      deleteErrorTimer.current = setTimeout(() => setDeleteError(null), 5000)
+      return
+    }
+    crud.refetch()
+    fetch('/api/masters/users').then(r => r.json()).then(setAllUsers)
+    fetch('/api/masters/users/license').then(r => r.json()).then(setLicense)
   }
 
   async function handleSave() {
@@ -122,13 +139,26 @@ export default function UsersPage() {
 
   return (
     <>
+      {deleteError && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-red-600 text-white text-sm font-medium px-4 py-2.5 rounded-xl shadow-lg max-w-sm w-full mx-4">
+          <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+          </svg>
+          <span className="flex-1">{deleteError}</span>
+          <button onClick={() => setDeleteError(null)} className="hover:opacity-75 transition">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      )}
       <CrudPage title="Users" headerExtra={licenseBadge} backHref="/masters" columns={COLS} rows={crud.rows} allRowsCount={crud.allRows.length}
         isLoading={crud.isLoading} search={crud.search} onSearchChange={crud.setSearch}
         page={crud.page} totalPages={crud.totalPages} onPage={crud.setPage}
         onAdd={canEdit ? openAdd : undefined}
         onEdit={canEdit ? openEdit : undefined}
         showActive={false}
-        onDelete={canDelete ? r => crud.remove(r.id as string) : undefined} />
+        onDelete={canDelete ? handleDelete : undefined} />
 
       {/* License limit error popup */}
       {limitError && (
