@@ -22,12 +22,11 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const user = await requireUser()
   if (!await checkPermission(user, 'organization', 'edit')) return forbidden()
-  const { name, department_id } = await req.json()
+  const { name } = await req.json()
   if (!name?.trim()) return NextResponse.json({ error: 'Name is required' }, { status: 400 })
-  if (!department_id) return NextResponse.json({ error: 'Department is required' }, { status: 400 })
   const supabase = createServerSupabase()
   const { data, error } = await supabase
-    .from('designations').insert({ name: name.trim(), department_id, tenant_id: getTenantId() }).select().single()
+    .from('designations').insert({ name: name.trim(), tenant_id: getTenantId() }).select().single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json(data, { status: 201 })
 }

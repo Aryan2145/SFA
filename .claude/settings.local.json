@@ -27,7 +27,8 @@
       "Bash(node -e \"console.log\\(require\\(''./node_modules/next/package.json''\\).version\\)\")",
       "Bash(npm view:*)",
       "Bash(npm uninstall:*)",
-      "Bash(npm audit:*)"
+      "Bash(npm audit:*)",
+      "Bash(\"C:/Users/Aryan/documents/RGB_Software/testing/public/site.webmanifest\")"
     ]
   },
   "enableAllProjectMcpServers": true,

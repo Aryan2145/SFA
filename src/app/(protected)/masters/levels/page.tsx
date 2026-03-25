@@ -23,6 +23,14 @@ export default function LevelsPage() {
   const [saving, setSaving] = useState(false)
 
   function openAdd() { setEditing(null); setName(''); setLevelNo(''); setOpen(true) }
+
+  function handleLevelNoChange(val: string) {
+    setLevelNo(val)
+    // Auto-fill name only if user hasn't manually typed a custom name
+    if (!editing && (!name || name === `L${levelNo}`)) {
+      setName(val ? `L${val}` : '')
+    }
+  }
   function openEdit(row: Record<string, unknown>) { setEditing(row); setName(String(row.name)); setLevelNo(String(row.level_no)); setOpen(true) }
 
   async function handleSave() {
@@ -47,7 +55,7 @@ export default function LevelsPage() {
       <Modal title={editing ? 'Edit Level' : 'Add Level'} isOpen={open} onClose={() => setOpen(false)} onSave={handleSave} isSaving={saving}>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Level No <span className="text-red-500">*</span></label>
-          <input type="number" value={levelNo} onChange={e => setLevelNo(e.target.value)} placeholder="e.g. 1"
+          <input type="number" value={levelNo} onChange={e => handleLevelNoChange(e.target.value)} placeholder="e.g. 1"
             className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
         </div>
         <div>

@@ -90,14 +90,14 @@ export default function UsersPage() {
   }
 
   function refreshLists() {
-    fetch('/api/masters/users').then(r => r.json()).then(setAllUsers)
+    fetch('/api/masters/users').then(r => r.json()).then(d => setAllUsers(Array.isArray(d) ? d : []))
     fetch('/api/masters/users/license').then(r => r.json()).then(setLicense)
   }
 
   useEffect(() => {
-    fetch('/api/masters/levels').then(r => r.json()).then(setLevels)
-    fetch('/api/masters/departments').then(r => r.json()).then(setDepts)
-    fetch('/api/masters/designations').then(r => r.json()).then(setAllDesigs)
+    fetch('/api/masters/levels').then(r => r.json()).then(d => setLevels(Array.isArray(d) ? d : []))
+    fetch('/api/masters/departments').then(r => r.json()).then(d => setDepts(Array.isArray(d) ? d : []))
+    fetch('/api/masters/designations').then(r => r.json()).then(d => setAllDesigs(Array.isArray(d) ? d : []))
     refreshLists()
   }, [])
 
@@ -108,13 +108,12 @@ export default function UsersPage() {
   const managerCandidates = activeUsers.filter(u => {
     if (editing && u.id === (editing.id as string)) return false
     if (!selectedLevel) return true
-    const uLevel = u.levels?.level_no ?? 99
+    const uLevel = levels.find(l => l.id === u.level_id)?.level_no ?? 99
     if (selectedLevel.level_no === 2) return uLevel === 1
     if (selectedLevel.level_no === 3) return uLevel <= 2
     return true
   })
 
-  const filteredDesigs = allDesigs.filter(d => !form.department_id || d.department_id === form.department_id)
 
   function openAdd() {
     if (atLimit) { setLimitError(true); return }
@@ -356,7 +355,7 @@ export default function UsersPage() {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Designation</label>
-            <SearchableSelect value={form.designation_id} onChange={setF('designation_id')} options={filteredDesigs.map(d => ({ value: d.id, label: d.name }))} placeholder="Select desig…" disabled={!form.department_id} />
+            <SearchableSelect value={form.designation_id} onChange={setF('designation_id')} options={allDesigs.map(d => ({ value: d.id, label: d.name }))} placeholder="Select desig…" />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Level <span className="text-red-500">*</span></label>
@@ -373,7 +372,7 @@ export default function UsersPage() {
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Manager {selectedLevel?.level_no === 2 ? '(must be L1)' : selectedLevel?.level_no === 3 ? '(must be L1 or L2)' : ''}
             </label>
-            <SearchableSelect value={form.manager_user_id} onChange={setF('manager_user_id')} options={managerCandidates.map(u => ({ value: u.id, label: `${u.name} (${u.levels?.name ?? ''})` }))} placeholder="Select manager…" />
+            <SearchableSelect value={form.manager_user_id} onChange={setF('manager_user_id')} options={managerCandidates.map(u => ({ value: u.id, label: `${u.name} (${levels.find(l => l.id === u.level_id)?.name ?? ''})` }))} placeholder="Select manager…" />
           </div>
         </div>
       </Modal>
@@ -472,7 +471,7 @@ export default function UsersPage() {
                 <SearchableSelect
                   value={reactivateForm.manager_user_id}
                   onChange={v => setReactivateForm(f => ({ ...f, manager_user_id: v }))}
-                  options={activeUsers.filter(u => u.id !== reactivateTarget.id).map(u => ({ value: u.id, label: `${u.name} (${u.levels?.name ?? ''})` }))}
+                  options={activeUsers.filter(u => u.id !== reactivateTarget.id).map(u => ({ value: u.id, label: `${u.name} (${levels.find(l => l.id === u.level_id)?.name ?? ''})` }))}
                   placeholder="Select manager…"
                 />
               </div>
