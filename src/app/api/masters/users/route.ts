@@ -63,7 +63,11 @@ export async function POST(req: NextRequest) {
     department_id: department_id || null, designation_id: designation_id || null,
     level_id, profile, manager_user_id: manager_user_id || null, tenant_id: tid,
   }).select().single()
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    if (error.code === '23505' && error.message.includes('users_tenant_contact'))
+      return NextResponse.json({ error: 'Number already registered. Please use a different contact number.' }, { status: 400 })
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
 
   // Cascade visibility: new user is visible to their manager and all ancestors
   if (manager_user_id && data) {

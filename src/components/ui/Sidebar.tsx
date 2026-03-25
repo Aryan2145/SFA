@@ -123,6 +123,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
 
   async function handleLogout() {
     await fetch('/api/auth/logout', { method: 'POST' })
+    invalidateMeCache()
     router.push('/login')
   }
 

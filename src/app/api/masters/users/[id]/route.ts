@@ -31,7 +31,11 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
   const { data, error } = await supabase
     .from('users').update(body).eq('id', params.id).eq('tenant_id', tid).select().single()
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    if (error.code === '23505' && error.message.includes('users_tenant_contact'))
+      return NextResponse.json({ error: 'Number already registered. Please use a different contact number.' }, { status: 400 })
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
 
   // Sync user_visibility when manager changes
   const newManagerId = ('manager_user_id' in body) ? (body.manager_user_id ?? null) : oldManagerId
