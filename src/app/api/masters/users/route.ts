@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
   if (scope === 'manage' && user.userId) {
     const { data: actingUser } = await supabase
       .from('users').select('levels(level_no)').eq('id', user.userId).single()
-    const actingLevelNo = (actingUser?.levels as { level_no: number } | null)?.level_no ?? null
+    const actingLevelNo = (actingUser?.levels as unknown as { level_no: number } | null)?.level_no ?? null
     if (actingLevelNo !== null) {
       const { data: subordinateLevels } = await supabase
         .from('levels').select('id').eq('tenant_id', tid).gt('level_no', actingLevelNo)
@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
       supabase.from('users').select('levels(level_no)').eq('id', user.userId).single(),
       supabase.from('levels').select('level_no').eq('id', level_id).single(),
     ])
-    const actingLevelNo = (actingUser?.levels as { level_no: number } | null)?.level_no ?? null
+    const actingLevelNo = (actingUser?.levels as unknown as { level_no: number } | null)?.level_no ?? null
     if (actingLevelNo !== null && targetLevel && targetLevel.level_no <= actingLevelNo)
       return NextResponse.json(
         { error: 'You can only create users at lower authority levels than yourself' },

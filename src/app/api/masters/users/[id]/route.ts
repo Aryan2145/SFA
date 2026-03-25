@@ -19,8 +19,8 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   ])
   const existing = existingResult.data
   const oldManagerId = existing?.manager_user_id ?? null
-  const targetLevelNo = (existing?.levels as { level_no: number } | null)?.level_no ?? null
-  const actingLevelNo = (actingResult.data?.levels as { level_no: number } | null)?.level_no ?? null
+  const targetLevelNo = (existing?.levels as unknown as { level_no: number } | null)?.level_no ?? null
+  const actingLevelNo = (actingResult.data?.levels as unknown as { level_no: number } | null)?.level_no ?? null
 
   // Self-edit restrictions
   if (params.id === user.userId) {
@@ -139,8 +139,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (!targetUser) return NextResponse.json({ error: 'User not found' }, { status: 404 })
 
   // Level hierarchy check: cannot deactivate/reactivate users at same or higher authority level
-  const patchActingLevelNo = (actingUserForPatch?.levels as { level_no: number } | null)?.level_no ?? null
-  const patchTargetLevelNo = (targetUser?.levels as { level_no: number } | null)?.level_no ?? null
+  const patchActingLevelNo = (actingUserForPatch?.levels as unknown as { level_no: number } | null)?.level_no ?? null
+  const patchTargetLevelNo = (targetUser?.levels as unknown as { level_no: number } | null)?.level_no ?? null
   if (params.id !== u.userId && patchActingLevelNo !== null && patchTargetLevelNo !== null && patchTargetLevelNo <= patchActingLevelNo)
     return NextResponse.json(
       { error: 'You can only deactivate or reactivate users at lower authority levels than yourself' },
