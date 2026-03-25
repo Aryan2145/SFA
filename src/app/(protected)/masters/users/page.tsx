@@ -523,10 +523,10 @@ export default function UsersPage() {
                       </span>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm text-gray-800 font-medium">{entry.target_user_name}</p>
-                        {entry.action === 'role_changed' && entry.metadata.from && (
+                        {entry.action === 'role_changed' && Boolean(entry.metadata.from) && (
                           <p className="text-xs text-gray-500">{String(entry.metadata.from)} → {String(entry.metadata.to)}</p>
                         )}
-                        {entry.action === 'name_changed' && entry.metadata.from && (
+                        {entry.action === 'name_changed' && Boolean(entry.metadata.from) && (
                           <p className="text-xs text-gray-500">{String(entry.metadata.from)} → {String(entry.metadata.to)}</p>
                         )}
                         <p className="text-xs text-gray-400 mt-0.5">by {entry.performed_by_name}</p>
