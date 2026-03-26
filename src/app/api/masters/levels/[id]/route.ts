@@ -24,6 +24,11 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
   const supabase = createServerSupabase()
   const { error } = await supabase
     .from('levels').delete().eq('id', params.id).eq('tenant_id', getTenantId())
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    const friendly = (error as { code?: string }).code === '23503'
+      ? 'Cannot delete this level because users are assigned to it. Reassign them first.'
+      : error.message
+    return NextResponse.json({ error: friendly }, { status: 400 })
+  }
   return NextResponse.json({ ok: true })
 }
