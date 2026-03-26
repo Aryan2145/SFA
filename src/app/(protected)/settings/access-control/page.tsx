@@ -382,7 +382,7 @@ function ReportingSchema({ preselectedUserId }: { preselectedUserId: string | nu
   const [saved, setSaved] = useState(true)
   const [importMsg, setImportMsg] = useState('')
 
-  useEffect(() => {
+  const loadUsers = useCallback((preselect: string | null) => {
     fetch('/api/masters/users')
       .then(r => r.json())
       .then((data: { id: string; name: string; levels?: { name: string } | null }[]) => {
@@ -392,12 +392,18 @@ function ReportingSchema({ preselectedUserId }: { preselectedUserId: string | nu
           level: u.levels?.name ?? '',
         }))
         setAllUsers(users)
-        if (preselectedUserId) {
-          const found = users.find(u => u.id === preselectedUserId)
+        if (preselect) {
+          const found = users.find(u => u.id === preselect)
           if (found) setSelectedUser(found)
         }
       })
-  }, [preselectedUserId])
+  }, [])
+
+  useEffect(() => {
+    // Auto-sync visibility from manager hierarchy on mount, then load users
+    fetch('/api/access-control/visibility/bulk-import', { method: 'POST' })
+      .finally(() => loadUsers(preselectedUserId))
+  }, [preselectedUserId, loadUsers])
 
   const loadVisibility = useCallback(async (userId: string) => {
     setLoadingVis(true)
@@ -441,6 +447,7 @@ function ReportingSchema({ preselectedUserId }: { preselectedUserId: string | nu
     const data = await r.json()
     setImporting(false)
     setImportMsg(`Synced ${data.inserted ?? 0} rules from hierarchy`)
+    loadUsers(null)
     if (selectedUser) loadVisibility(selectedUser.id)
     setTimeout(() => setImportMsg(''), 4000)
   }
@@ -593,13 +600,17 @@ function OrgChart() {
   const [search, setSearch] = useState('')
 
   useEffect(() => {
-    fetch('/api/access-control/visibility/all')
-      .then(r => r.json())
-      .then(data => {
-        setRows(Array.isArray(data) ? data : [])
-        setLoading(false)
-      })
-      .catch(() => setLoading(false))
+    // Auto-sync from manager hierarchy, then load org chart
+    fetch('/api/access-control/visibility/bulk-import', { method: 'POST' })
+      .finally(() =>
+        fetch('/api/access-control/visibility/all')
+          .then(r => r.json())
+          .then(data => {
+            setRows(Array.isArray(data) ? data : [])
+            setLoading(false)
+          })
+          .catch(() => setLoading(false))
+      )
   }, [])
 
   const tree = buildTree(rows)
