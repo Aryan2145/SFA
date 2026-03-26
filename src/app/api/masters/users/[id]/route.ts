@@ -244,7 +244,7 @@ async function cascadeVisibilityUp(
 
   if (rows.length > 0) {
     await supabase.from('user_visibility').upsert(rows, {
-      onConflict: 'tenant_id,viewer_user_id,target_user_id',
+      onConflict: 'viewer_user_id,target_user_id',
       ignoreDuplicates: true,
     })
   }

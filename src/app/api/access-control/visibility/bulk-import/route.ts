@@ -46,7 +46,7 @@ export async function POST() {
 
   const { error: insertError } = await supabase
     .from('user_visibility')
-    .upsert(rows, { onConflict: 'tenant_id,viewer_user_id,target_user_id', ignoreDuplicates: true })
+    .upsert(rows, { onConflict: 'viewer_user_id,target_user_id', ignoreDuplicates: true })
 
   if (insertError) return NextResponse.json({ error: insertError.message }, { status: 500 })
   return NextResponse.json({ inserted: rows.length })
