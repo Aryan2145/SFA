@@ -251,7 +251,7 @@ export function BusinessPartnerFormFields({
           )}
         </div>
         <input id="bp-mobile1" name="mobile_1" type="tel" value={form.mobile_1}
-          onChange={e => { F('mobile_1')(e); setMobile1Error('') }}
+          onChange={e => { setForm(f => ({ ...f, mobile_1: e.target.value.replace(/\D/g, '').slice(0, 10) })); setMobile1Error('') }}
           placeholder="10-digit number" maxLength={10}
           className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${mobile1Error ? 'border-red-400' : 'border-gray-300'}`} />
         {mobile1Error && <p className="text-xs text-red-500 mt-1">{mobile1Error}</p>}
@@ -268,7 +268,7 @@ export function BusinessPartnerFormFields({
             </button>
           </div>
           <input id="bp-mobile2" name="mobile_2" type="tel" value={form.mobile_2}
-            onChange={e => { F('mobile_2')(e); setMobile2Error('') }}
+            onChange={e => { setForm(f => ({ ...f, mobile_2: e.target.value.replace(/\D/g, '').slice(0, 10) })); setMobile2Error('') }}
             placeholder="10-digit number" maxLength={10}
             className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${mobile2Error ? 'border-red-400' : 'border-gray-300'}`} />
           {mobile2Error && <p className="text-xs text-red-500 mt-1">{mobile2Error}</p>}

@@ -43,7 +43,7 @@ export default function LeadStagesPage() {
   async function handleReorder(newRows: Record<string, unknown>[]) {
     await Promise.all(
       newRows.map((row, idx) =>
-        crud.update(row.id as string, { name: row.name, sort_order: idx, is_active: row.is_active })
+        crud.update(row.id as string, { name: row.name, sort_order: idx })
       )
     )
   }

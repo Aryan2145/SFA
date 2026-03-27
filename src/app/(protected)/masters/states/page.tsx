@@ -35,10 +35,6 @@ export default function StatesPage() {
     if (ok !== false && ok !== null) setOpen(false)
   }
 
-  async function handleToggle(row: Record<string, unknown>, val: boolean) {
-    await crud.update(row.id as string, { is_active: val })
-  }
-
   return (
     <>
       <CrudPage
@@ -47,7 +43,6 @@ export default function StatesPage() {
         page={crud.page} totalPages={crud.totalPages} onPage={crud.setPage}
         onAdd={canEdit ? openAdd : undefined}
         onEdit={canEdit ? openEdit : undefined}
-        onToggleActive={canEdit ? handleToggle : undefined}
         onDelete={canDelete ? r => crud.remove(r.id as string) : undefined}
       />
       <Modal title={editing ? 'Edit State' : 'Add State'} isOpen={open} onClose={() => setOpen(false)} onSave={handleSave} isSaving={saving}>

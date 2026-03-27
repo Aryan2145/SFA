@@ -118,7 +118,6 @@ export default function DealersPage() {
         page={displayPage} totalPages={displayTotalPages} onPage={displayOnPage}
         onAdd={canEdit ? openAdd : undefined}
         onEdit={canEdit ? openEdit : undefined}
-        onToggleActive={canEdit ? (r, v) => crud.update(r.id as string, { is_active: v }) : undefined}
         onDelete={canDelete ? r => crud.remove(r.id as string) : undefined}
         filterBar={
           <div className="flex items-center gap-1.5">

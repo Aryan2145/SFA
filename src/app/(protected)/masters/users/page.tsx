@@ -56,6 +56,7 @@ export default function UsersPage() {
   const [form, setForm] = useState(INIT)
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState('')
+  const [emailError, setEmailError] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [levels, setLevels] = useState<Level[]>([])
   const [depts, setDepts] = useState<Dept[]>([])
@@ -107,11 +108,12 @@ export default function UsersPage() {
 
   function openAdd() {
     if (atLimit) { setLimitError(true); return }
-    setEditing(null); setForm(INIT); setFormError(''); setShowPassword(false); setOpen(true)
+    setEditing(null); setForm(INIT); setFormError(''); setEmailError(''); setShowPassword(false); setOpen(true)
   }
   function openEdit(row: Record<string, unknown>) {
     setEditing(row)
     setFormError('')
+    setEmailError('')
     setShowPassword(false)
     setForm({ name: String(row.name), email: String(row.email), contact: String(row.contact), password: '', department_id: String(row.department_id ?? ''), designation_id: String(row.designation_id ?? ''), level_id: String(row.level_id), profile: String(row.profile), manager_user_id: String(row.manager_user_id ?? '') })
     setOpen(true)
@@ -119,8 +121,10 @@ export default function UsersPage() {
 
   async function handleSave() {
     setFormError('')
+    setEmailError('')
     if (!form.name.trim()) { setFormError('Full name is required'); return }
     if (!form.email.trim()) { setFormError('Email is required'); return }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) { setEmailError('Please enter a valid email address'); return }
     if (!form.contact.trim()) { setFormError('Contact number is required'); return }
     if (!/^\d{10}$/.test(form.contact.trim())) { setFormError('Contact number must be exactly 10 digits'); return }
     if (!form.level_id) { setFormError('Level is required'); return }
@@ -325,11 +329,16 @@ export default function UsersPage() {
           </div>
           <div>
             <label htmlFor="user-email" className="block text-sm font-medium text-gray-700 mb-1">Email <span className="text-red-500">*</span></label>
-            <input id="user-email" name="email" type="email" value={form.email} onChange={e => setF('email')(e.target.value)} placeholder="email@example.com" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            <input id="user-email" name="email" type="email" value={form.email} onChange={e => { setF('email')(e.target.value); setEmailError('') }} placeholder="email@example.com"
+              className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${emailError ? 'border-red-400' : 'border-gray-300'}`} />
+            {emailError && <p className="text-xs text-red-500 mt-1">{emailError}</p>}
           </div>
           <div>
             <label htmlFor="user-contact" className="block text-sm font-medium text-gray-700 mb-1">Contact <span className="text-red-500">*</span></label>
-            <input id="user-contact" name="contact" type="tel" value={form.contact} onChange={e => setF('contact')(e.target.value)} placeholder="10-digit mobile" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            <input id="user-contact" name="contact" type="tel" value={form.contact}
+              onChange={e => setF('contact')(e.target.value.replace(/\D/g, '').slice(0, 10))}
+              placeholder="10-digit mobile" maxLength={10}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
           <div>
             <label htmlFor="user-password" className="block text-sm font-medium text-gray-700 mb-1">

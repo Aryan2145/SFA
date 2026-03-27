@@ -35,7 +35,7 @@ export default function ExpenseCategoriesPage() {
   async function handleReorder(newRows: Record<string, unknown>[]) {
     await Promise.all(
       newRows.map((row, idx) =>
-        crud.update(row.id as string, { name: row.name, sort_order: idx, is_active: row.is_active })
+        crud.update(row.id as string, { name: row.name, sort_order: idx })
       )
     )
   }
@@ -49,7 +49,6 @@ export default function ExpenseCategoriesPage() {
         page={crud.page} totalPages={crud.totalPages} onPage={crud.setPage}
         onAdd={isAdmin ? openAdd : undefined}
         onEdit={isAdmin ? openEdit : undefined}
-        onToggleActive={isAdmin ? (r, v) => crud.update(r.id as string, { is_active: v }) : undefined}
         onDelete={isAdmin ? r => crud.remove(r.id as string) : undefined}
         onReorder={isAdmin ? handleReorder : undefined}
       />

@@ -79,7 +79,6 @@ export default function DistributorsPage() {
         page={crud.page} totalPages={crud.totalPages} onPage={crud.setPage}
         onAdd={canEdit ? openAdd : undefined}
         onEdit={canEdit ? openEdit : undefined}
-        onToggleActive={canEdit ? (r, v) => crud.update(r.id as string, { is_active: v }) : undefined}
         onDelete={canDelete ? r => crud.remove(r.id as string) : undefined} />
 
       <Modal title={editing ? 'Edit Distributor' : 'Add Distributor'} isOpen={open} onClose={() => setOpen(false)} onSave={handleSave} isSaving={saving} size="lg">
