@@ -4,6 +4,7 @@ import { getTenantId } from '@/lib/tenant'
 import { requireUser } from '@/lib/auth'
 import { checkPermission, forbidden } from '@/lib/permissions'
 import { SupabaseClient } from '@supabase/supabase-js'
+import bcrypt from 'bcryptjs'
 
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
   const user = await requireUser()
@@ -38,12 +39,13 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       return NextResponse.json({ error: 'You cannot change your own hierarchy position' }, { status: 400 })
   }
 
-  // Level hierarchy check: cannot edit users at same or higher authority level
-  if (params.id !== user.userId && actingLevelNo !== null && targetLevelNo !== null && targetLevelNo <= actingLevelNo)
-    return NextResponse.json(
-      { error: 'You can only manage users at lower authority levels than yourself' },
-      { status: 403 }
-    )
+  // Level hierarchy check: non-admins cannot edit users at same or higher authority level
+  if (params.id !== user.userId && user.role !== 'Administrator') {
+    if (actingLevelNo === null)
+      return NextResponse.json({ error: 'Your account does not have a level assigned to manage users' }, { status: 403 })
+    if (targetLevelNo === null || targetLevelNo <= actingLevelNo)
+      return NextResponse.json({ error: 'You can only manage users at lower authority levels than yourself' }, { status: 403 })
+  }
 
   // Only admins can change level or role
   if (user.role !== 'Administrator') {
@@ -54,8 +56,10 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   }
 
   // Level-based manager validation: manager must have a strictly lower level_no
-  if (body.manager_user_id && body.level_id) {
-    const { data: userLevel } = await supabase.from('levels').select('level_no').eq('id', body.level_id).single()
+  // Fall back to existing level_id if not being changed in this request
+  const levelIdForValidation = (body.level_id ?? existing?.level_id) as string | undefined
+  if (body.manager_user_id && levelIdForValidation) {
+    const { data: userLevel } = await supabase.from('levels').select('level_no').eq('id', levelIdForValidation).single()
     const { data: mgr } = await supabase.from('users')
       .select('level_id, levels(level_no)').eq('id', body.manager_user_id).single()
     if (userLevel && mgr) {
@@ -65,8 +69,18 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     }
   }
 
+  // Whitelist allowed fields — prevent arbitrary column injection
+  const ALLOWED_PUT_FIELDS = ['name', 'email', 'contact', 'password', 'department_id', 'designation_id', 'level_id', 'profile', 'manager_user_id']
+  const safeBody: Record<string, unknown> = {}
+  for (const key of ALLOWED_PUT_FIELDS) {
+    if (key in body) safeBody[key] = body[key]
+  }
+  if (safeBody.password) {
+    safeBody.password = await bcrypt.hash(safeBody.password as string, 12)
+  }
+
   const { data, error } = await supabase
-    .from('users').update(body).eq('id', params.id).eq('tenant_id', tid).select().single()
+    .from('users').update(safeBody).eq('id', params.id).eq('tenant_id', tid).select().single()
   if (error) {
     if (error.code === '23505' && error.message.includes('users_tenant_contact'))
       return NextResponse.json({ error: 'Number already registered. Please use a different contact number.' }, { status: 400 })
@@ -133,19 +147,23 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
 
   const [{ data: targetUser }, { data: actingUserForPatch }] = await Promise.all([
-    supabase.from('users').select('name, profile, levels(level_no)').eq('id', params.id).eq('tenant_id', tid).single(),
+    supabase.from('users').select('name, profile, manager_user_id, levels(level_no)').eq('id', params.id).eq('tenant_id', tid).single(),
     u.userId ? supabase.from('users').select('levels(level_no)').eq('id', u.userId).single() : Promise.resolve({ data: null }),
   ])
   if (!targetUser) return NextResponse.json({ error: 'User not found' }, { status: 404 })
 
-  // Level hierarchy check: cannot deactivate/reactivate users at same or higher authority level
+  // Level hierarchy check: non-admins cannot deactivate/reactivate users at same or higher authority level
   const patchActingLevelNo = (actingUserForPatch?.levels as unknown as { level_no: number } | null)?.level_no ?? null
   const patchTargetLevelNo = (targetUser?.levels as unknown as { level_no: number } | null)?.level_no ?? null
-  if (params.id !== u.userId && patchActingLevelNo !== null && patchTargetLevelNo !== null && patchTargetLevelNo <= patchActingLevelNo)
-    return NextResponse.json(
-      { error: 'You can only deactivate or reactivate users at lower authority levels than yourself' },
-      { status: 403 }
-    )
+  if (params.id !== u.userId && u.role !== 'Administrator') {
+    if (patchActingLevelNo === null)
+      return NextResponse.json({ error: 'Your account does not have a level assigned to manage users' }, { status: 403 })
+    if (patchTargetLevelNo === null || patchTargetLevelNo <= patchActingLevelNo)
+      return NextResponse.json(
+        { error: 'You can only deactivate or reactivate users at lower authority levels than yourself' },
+        { status: 403 }
+      )
+  }
 
   // Block deactivating the last active Administrator
   if (action === 'deactivate' && targetUser.profile === 'Administrator') {
@@ -169,6 +187,15 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const { error } = await supabase
     .from('users').update(updatePayload).eq('id', params.id).eq('tenant_id', tid)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // Restore visibility chain when reactivating a user with a manager
+  if (action === 'reactivate') {
+    const effectiveManagerId = (('manager_user_id' in updatePayload ? updatePayload.manager_user_id : null) as string | null)
+      ?? (targetUser as unknown as { manager_user_id: string | null }).manager_user_id
+    if (effectiveManagerId) {
+      await cascadeVisibilityUp(supabase, tid, params.id, effectiveManagerId)
+    }
+  }
 
   void supabase.from('user_audit_logs').insert({
     tenant_id: tid,

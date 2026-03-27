@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, ReactNode } from 'react'
+import { useState, useEffect, ReactNode } from 'react'
 import CrudPage, { Column } from '@/components/ui/CrudPage'
 import Modal from '@/components/ui/Modal'
 import SearchableSelect from '@/components/ui/SearchableSelect'
@@ -81,16 +81,6 @@ export default function UsersPage() {
   const [auditLogs, setAuditLogs] = useState<AuditEntry[]>([])
   const [auditLoading, setAuditLoading] = useState(false)
 
-  // Page-level error banner
-  const [pageError, setPageError] = useState<string | null>(null)
-  const pageErrorTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  function showError(msg: string) {
-    setPageError(msg)
-    if (pageErrorTimer.current) clearTimeout(pageErrorTimer.current)
-    pageErrorTimer.current = setTimeout(() => setPageError(null), 5000)
-  }
-
   function refreshLists() {
     fetch('/api/masters/users').then(r => r.json()).then(d => setAllUsers(Array.isArray(d) ? d : [])).catch(() => toast('Failed to load user data. Please refresh.', 'error'))
     fetch('/api/masters/users/license').then(r => r.json()).then(setLicense).catch(() => toast('Failed to load user data. Please refresh.', 'error'))
@@ -111,9 +101,7 @@ export default function UsersPage() {
     if (editing && u.id === (editing.id as string)) return false
     if (!selectedLevel) return true
     const uLevel = levels.find(l => l.id === u.level_id)?.level_no ?? 99
-    if (selectedLevel.level_no === 2) return uLevel === 1
-    if (selectedLevel.level_no === 3) return uLevel <= 2
-    return true
+    return uLevel < selectedLevel.level_no
   })
 
 
@@ -174,7 +162,7 @@ export default function UsersPage() {
       body: JSON.stringify({ action: 'deactivate' }),
     })
     setDeactivateSaving(false)
-    if (!res.ok) { const d = await res.json(); showError(d.error ?? 'Deactivation failed'); }
+    if (!res.ok) { const d = await res.json(); toast(d.error ?? 'Deactivation failed', 'error') }
     setDeactivateTarget(null)
     setDeactivateSummary(null)
     crud.refetch()
@@ -273,21 +261,6 @@ export default function UsersPage() {
 
   return (
     <>
-      {/* Page-level error banner */}
-      {pageError && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-red-600 text-white text-sm font-medium px-4 py-2.5 rounded-xl shadow-lg max-w-sm w-full mx-4">
-          <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
-          </svg>
-          <span className="flex-1">{pageError}</span>
-          <button onClick={() => setPageError(null)} className="hover:opacity-75 transition">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-      )}
-
       <CrudPage title="Users" headerExtra={headerExtra} backHref="/masters" columns={COLS} rows={crud.rows} allRowsCount={crud.allRows.length}
         isLoading={crud.isLoading} search={crud.search} onSearchChange={crud.setSearch}
         page={crud.page} totalPages={crud.totalPages} onPage={crud.setPage}

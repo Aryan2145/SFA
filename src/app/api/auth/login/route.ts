@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { signSession, COOKIE_NAME } from '@/lib/session'
 import { createServerSupabase } from '@/lib/supabase-server'
+import bcrypt from 'bcryptjs'
 
 export async function POST(req: NextRequest) {
   const { phone, password } = await req.json()
@@ -18,8 +19,17 @@ export async function POST(req: NextRequest) {
     .maybeSingle()
 
   if (!dbError && user) {
-    if (user.password !== password) {
+    const isHashed = user.password?.startsWith('$2')
+    const isValid = isHashed
+      ? await bcrypt.compare(password, user.password)
+      : user.password === password
+    if (!isValid) {
       return NextResponse.json({ error: 'Invalid phone or password' }, { status: 401 })
+    }
+    // Lazily upgrade plaintext password to hash on first successful login
+    if (!isHashed) {
+      const hash = await bcrypt.hash(password, 12)
+      void supabase.from('users').update({ password: hash }).eq('id', user.id)
     }
     if (user.status !== 'Active') {
       return NextResponse.json({ error: 'Account is inactive. Contact your administrator.' }, { status: 403 })

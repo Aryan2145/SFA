@@ -4,6 +4,7 @@ import { getTenantId } from '@/lib/tenant'
 import { requireUser } from '@/lib/auth'
 import { checkPermission, forbidden } from '@/lib/permissions'
 import { SupabaseClient } from '@supabase/supabase-js'
+import bcrypt from 'bcryptjs'
 
 export async function GET(req: NextRequest) {
   const user = await requireUser()
@@ -17,19 +18,17 @@ export async function GET(req: NextRequest) {
     .eq('tenant_id', tid).order('name')
   if (q) query = query.or(`name.ilike.%${q}%,email.ilike.%${q}%,contact.ilike.%${q}%`)
 
-  // scope=manage: only return users at lower authority levels (higher level_no)
+  // scope=manage: non-admins see only users in their user_visibility chain
   // Administrators always see all users regardless of scope
   if (scope === 'manage' && user.userId && user.role !== 'Administrator') {
-    const { data: actingUser } = await supabase
-      .from('users').select('levels(level_no)').eq('id', user.userId).single()
-    const actingLevelNo = (actingUser?.levels as unknown as { level_no: number } | null)?.level_no ?? null
-    if (actingLevelNo !== null) {
-      const { data: subordinateLevels } = await supabase
-        .from('levels').select('id').eq('tenant_id', tid).gt('level_no', actingLevelNo)
-      const subordinateLevelIds = (subordinateLevels ?? []).map((l: { id: string }) => l.id)
-      if (subordinateLevelIds.length === 0) return NextResponse.json([])
-      query = query.in('level_id', subordinateLevelIds)
-    }
+    const { data: visibleRows } = await supabase
+      .from('user_visibility')
+      .select('target_user_id')
+      .eq('tenant_id', tid)
+      .eq('viewer_user_id', user.userId)
+    const visibleIds = (visibleRows ?? []).map((r: { target_user_id: string }) => r.target_user_id)
+    if (visibleIds.length === 0) return NextResponse.json([])
+    query = query.in('id', visibleIds)
   }
 
   const { data, error } = await query
@@ -91,8 +90,9 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  const hashedPassword = await bcrypt.hash(password.trim(), 12)
   const { data, error } = await supabase.from('users').insert({
-    name: name.trim(), email: email.trim(), contact: contact.trim(), password: password.trim(),
+    name: name.trim(), email: email.trim(), contact: contact.trim(), password: hashedPassword,
     department_id: department_id || null, designation_id: designation_id || null,
     level_id, profile, manager_user_id: manager_user_id || null, tenant_id: tid,
   }).select().single()

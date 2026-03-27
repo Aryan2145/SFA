@@ -30,11 +30,13 @@ export async function requireUser(): Promise<SessionUser> {
       const supabase = createServerSupabase()
       const { data } = await supabase
         .from('users')
-        .select('profile')
+        .select('profile, status')
         .eq('id', user.userId)
         .single()
       if (data?.profile) user.role = data.profile
-    } catch {
+      if (data?.status === 'Inactive') throw new Error('Account deactivated')
+    } catch (e) {
+      if ((e as Error).message === 'Account deactivated') throw e
       // If DB lookup fails (e.g. during migrations), fall back to session role
     }
   }
