@@ -12,18 +12,6 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   const supabase = createServerSupabase()
   const tid = getTenantId()
 
-  // Level-based manager validation: manager must have a strictly lower level_no
-  if (body.manager_user_id && body.level_id) {
-    const { data: userLevel } = await supabase.from('levels').select('level_no').eq('id', body.level_id).single()
-    const { data: mgr } = await supabase.from('users')
-      .select('level_id, levels(level_no)').eq('id', body.manager_user_id).single()
-    if (userLevel && mgr) {
-      const mgrLevelNo = (mgr.levels as unknown as { level_no: number })?.level_no
-      if (mgrLevelNo >= userLevel.level_no)
-        return NextResponse.json({ error: 'Manager must be at a higher level than the user' }, { status: 400 })
-    }
-  }
-
   // Fetch existing manager before update so we can diff
   const { data: existing } = await supabase
     .from('users').select('manager_user_id').eq('id', params.id).single()
