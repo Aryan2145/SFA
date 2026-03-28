@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import CrudPage, { Column } from '@/components/ui/CrudPage'
 import Modal from '@/components/ui/Modal'
 import { useCrud } from '@/hooks/useCrud'
@@ -67,6 +67,7 @@ export default function LeadsPage() {
   const [open, setOpen]       = useState(false)
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null)
   const [saving, setSaving]   = useState(false)
+  const savingRef             = useRef(false)
   const [leadTypes, setLeadTypes] = useState<{ id: string; name: string }[]>([])
 
   useEffect(() => {
@@ -81,11 +82,14 @@ export default function LeadsPage() {
   function openEdit(row: Record<string, unknown>) { bp.reset(row); setEditing(row); setOpen(true) }
 
   async function handleSave() {
+    if (savingRef.current) return
     if (!bp.form.name.trim()) return
     if (!bp.validate()) return
+    savingRef.current = true
     setSaving(true)
     const body = { ...bp.buildBody(), type: bp.form.type || null }
     const ok = editing ? await crud.update(editing.id as string, body) : await crud.create(body)
+    savingRef.current = false
     setSaving(false)
     if (ok !== false && ok !== null) setOpen(false)
   }
