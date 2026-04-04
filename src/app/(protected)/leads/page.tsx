@@ -60,11 +60,11 @@ const COLS: Column[] = [
 ]
 
 // ── CSV helpers ───────────────────────────────────────────────────────────────
-const CSV_HEADERS = ['Name*', 'Type*', 'Contact Person', 'Mobile 1', 'Mobile 2', 'Email', 'Address', 'State', 'District', 'Taluka', 'Temperature (Cold/Warm/Hot)', 'Next Follow-up Date (YYYY-MM-DD)', 'Description']
-const CSV_KEYS    = ['name',  'type',  'contact_person_name', 'mobile_1', 'mobile_2', 'email', 'address', 'state', 'district', 'taluka', 'temperature', 'next_follow_up_date', 'description']
+const CSV_HEADERS = ['Name*', 'Type*', 'Contact Person', 'Mobile 1', 'Mobile 2', 'Email', 'GST Number', 'Pin Code', 'Address', 'State', 'District', 'Taluka', 'Stage (Prospect/Contacted/Interested/Qualified/Proposal/Negotiation)', 'Temperature (Cold/Warm/Hot)', 'Next Follow-up Date (YYYY-MM-DD)', 'Description']
+const CSV_KEYS    = ['name',  'type',  'contact_person_name', 'mobile_1', 'mobile_2', 'email', 'gst_number', 'pincode', 'address', 'state', 'district', 'taluka', 'stage', 'temperature', 'next_follow_up_date', 'description']
 
 function downloadTemplate() {
-  const sampleRow = ['ABC Solar', 'Residential', 'Ravi Kumar', '9876543210', '', 'ravi@example.com', '123 Main St', 'Maharashtra', 'Pune', 'Haveli', 'Warm', '2026-05-01', 'Interested in 3kW system']
+  const sampleRow = ['ABC Solar', 'Residential', 'Ravi Kumar', '9876543210', '', 'ravi@example.com', '27AAPFU0939F1ZV', '411001', '123 Main St', 'Maharashtra', 'Pune', 'Haveli', 'Prospect', 'Warm', '2026-05-01', 'Interested in 3kW system']
   const csv = [CSV_HEADERS.join(','), sampleRow.join(',')].join('\n')
   const blob = new Blob([csv], { type: 'text/csv' })
   const url  = URL.createObjectURL(blob)

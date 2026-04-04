@@ -13,10 +13,13 @@ interface LeadRow {
   mobile_1?: string
   mobile_2?: string
   email?: string
+  gst_number?: string
+  pincode?: string
   address?: string
   state?: string
   district?: string
   taluka?: string
+  stage?: string
   temperature?: string
   next_follow_up_date?: string
   description?: string
@@ -47,7 +50,8 @@ export async function POST(req: NextRequest) {
   const talukaMap  = new Map((talukas  ?? []).map(r => [r.name.toLowerCase(), { id: r.id, district_id: r.district_id }]))
   const typeNames  = new Set((leadTypes ?? []).map(r => r.name.toLowerCase()))
 
-  const VALID_TEMPS = new Set(['cold', 'warm', 'hot'])
+  const VALID_TEMPS  = new Set(['cold', 'warm', 'hot'])
+  const VALID_STAGES = new Set(['prospect', 'contacted', 'interested', 'qualified', 'proposal', 'negotiation'])
 
   const inserted: number[] = []
   const errors: { row: number; message: string }[] = []
@@ -67,6 +71,9 @@ export async function POST(req: NextRequest) {
     if (r.mobile_2 && !/^\d{10}$/.test(String(r.mobile_2).trim())) {
       errors.push({ row: rowNum, message: 'Mobile 2 must be exactly 10 digits' }); continue
     }
+    if (r.stage && !VALID_STAGES.has(r.stage.trim().toLowerCase())) {
+      errors.push({ row: rowNum, message: 'Stage must be one of: Prospect, Contacted, Interested, Qualified, Proposal, Negotiation' }); continue
+    }
     if (r.temperature && !VALID_TEMPS.has(r.temperature.trim().toLowerCase())) {
       errors.push({ row: rowNum, message: 'Temperature must be Cold, Warm, or Hot' }); continue
     }
@@ -81,15 +88,22 @@ export async function POST(req: NextRequest) {
     const districtId = distEntry?.id ?? null
     const talukaId   = taluEntry?.id ?? null
 
+    const rawStage = r.stage?.trim()
+    const stage = rawStage
+      ? rawStage.charAt(0).toUpperCase() + rawStage.slice(1).toLowerCase()
+      : 'Prospect'
+
     const { error: insErr } = await supabase.from('business_partners').insert({
       tenant_id: tid,
-      stage: 'Prospect',
+      stage,
       name: r.name.trim(),
       type: r.type.trim(),
       contact_person_name: r.contact_person_name?.trim() || null,
       mobile_1: r.mobile_1?.trim() || null,
       mobile_2: r.mobile_2?.trim() || null,
       email: r.email?.trim() || null,
+      gst_number: r.gst_number?.trim().toUpperCase() || null,
+      pincode: r.pincode?.trim() || null,
       address: r.address?.trim() || null,
       description: r.description?.trim() || null,
       state_id: stateId,
