@@ -6,8 +6,7 @@ import { requireUser } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
-const STAGES = ['Prospect', 'Contacted', 'Interested', 'Qualified', 'Proposal', 'Negotiation']
-const TEMPS  = ['Cold', 'Warm', 'Hot']
+const TEMPS = ['Cold', 'Warm', 'Hot']
 
 export async function GET() {
   await requireUser()
@@ -15,8 +14,9 @@ export async function GET() {
   const supabase = createServerSupabase()
   const tid = getTenantId()
 
-  const [{ data: leadTypes }, { data: states }, { data: districts }, { data: talukas }] = await Promise.all([
+  const [{ data: leadTypes }, { data: leadStages }, { data: states }, { data: districts }, { data: talukas }] = await Promise.all([
     supabase.from('lead_types').select('name').eq('tenant_id', tid).order('sort_order'),
+    supabase.from('lead_stages').select('name').eq('tenant_id', tid).order('sort_order'),
     supabase.from('states').select('name').eq('tenant_id', tid).order('name'),
     supabase.from('districts').select('name').eq('tenant_id', tid).order('name'),
     supabase.from('talukas').select('name').eq('tenant_id', tid).order('name'),
@@ -35,11 +35,11 @@ export async function GET() {
   }
 
   const typeCount  = addRefSheet('Ref_Types',     (leadTypes  ?? []).map(r => r.name))
+  const stageCount = addRefSheet('Ref_Stages',    (leadStages ?? []).map(r => r.name))
   const stateCount = addRefSheet('Ref_States',    (states     ?? []).map(r => r.name))
   const distCount  = addRefSheet('Ref_Districts', (districts  ?? []).map(r => r.name))
   const taluCount  = addRefSheet('Ref_Talukas',   (talukas    ?? []).map(r => r.name))
-  addRefSheet('Ref_Stages', STAGES)
-  addRefSheet('Ref_Temps',  TEMPS)
+  addRefSheet('Ref_Temps', TEMPS)
 
   // ── Main "Leads" sheet ────────────────────────────────────────────────────
   const ws = workbook.addWorksheet('Leads')
@@ -103,7 +103,8 @@ export async function GET() {
   if (taluCount > 0)
     dv.add(`L2:L${MAX}`, { type: 'list', allowBlank: true, formulae: [`'Ref_Talukas'!$A$1:$A$${taluCount}`] })
 
-  dv.add(`M2:M${MAX}`, { type: 'list', allowBlank: true, formulae: [`'Ref_Stages'!$A$1:$A$${STAGES.length}`] })
+  if (stageCount > 0)
+    dv.add(`M2:M${MAX}`, { type: 'list', allowBlank: true, formulae: [`'Ref_Stages'!$A$1:$A$${stageCount}`] })
   dv.add(`N2:N${MAX}`, { type: 'list', allowBlank: true, formulae: [`'Ref_Temps'!$A$1:$A$${TEMPS.length}`] })
 
   // Freeze header

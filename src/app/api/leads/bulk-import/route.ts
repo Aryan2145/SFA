@@ -38,20 +38,21 @@ export async function POST(req: NextRequest) {
   const tid = getTenantId()
 
   // Fetch lookup tables once
-  const [{ data: states }, { data: districts }, { data: talukas }, { data: leadTypes }] = await Promise.all([
+  const [{ data: states }, { data: districts }, { data: talukas }, { data: leadTypes }, { data: leadStages }] = await Promise.all([
     supabase.from('states').select('id, name').eq('tenant_id', tid),
     supabase.from('districts').select('id, name, state_id').eq('tenant_id', tid),
     supabase.from('talukas').select('id, name, district_id').eq('tenant_id', tid),
     supabase.from('lead_types').select('id, name').eq('tenant_id', tid),
+    supabase.from('lead_stages').select('name').eq('tenant_id', tid),
   ])
 
   const stateMap   = new Map((states   ?? []).map(r => [r.name.toLowerCase(), r.id]))
   const distMap    = new Map((districts ?? []).map(r => [r.name.toLowerCase(), { id: r.id, state_id: r.state_id }]))
   const talukaMap  = new Map((talukas  ?? []).map(r => [r.name.toLowerCase(), { id: r.id, district_id: r.district_id }]))
-  const typeNames  = new Set((leadTypes ?? []).map(r => r.name.toLowerCase()))
+  const typeNames  = new Set((leadTypes  ?? []).map(r => r.name.toLowerCase()))
+  const VALID_STAGES = new Set((leadStages ?? []).map(r => r.name.toLowerCase()))
 
-  const VALID_TEMPS  = new Set(['cold', 'warm', 'hot'])
-  const VALID_STAGES = new Set(['prospect', 'contacted', 'interested', 'qualified', 'proposal', 'negotiation'])
+  const VALID_TEMPS = new Set(['cold', 'warm', 'hot'])
 
   const inserted: number[] = []
   const errors: { row: number; message: string }[] = []
@@ -72,7 +73,7 @@ export async function POST(req: NextRequest) {
       errors.push({ row: rowNum, message: 'Mobile 2 must be exactly 10 digits' }); continue
     }
     if (r.stage && !VALID_STAGES.has(r.stage.trim().toLowerCase())) {
-      errors.push({ row: rowNum, message: 'Stage must be one of: Prospect, Contacted, Interested, Qualified, Proposal, Negotiation' }); continue
+      errors.push({ row: rowNum, message: `Stage "${r.stage}" not found in masters` }); continue
     }
     if (r.temperature && !VALID_TEMPS.has(r.temperature.trim().toLowerCase())) {
       errors.push({ row: rowNum, message: 'Temperature must be Cold, Warm, or Hot' }); continue
