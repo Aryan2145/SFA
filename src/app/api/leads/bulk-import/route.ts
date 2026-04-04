@@ -102,7 +102,6 @@ export async function POST(req: NextRequest) {
       contact_person_name: r.contact_person_name?.trim() || null,
       mobile_1: r.mobile_1?.trim() || null,
       mobile_2: r.mobile_2?.trim() || null,
-      email: r.email?.trim() || null,
       gst_number: r.gst_number?.trim().toUpperCase() || null,
       pincode: r.pincode?.trim() || null,
       address: r.address?.trim() || null,
