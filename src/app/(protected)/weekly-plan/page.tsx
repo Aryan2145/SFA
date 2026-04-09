@@ -52,6 +52,7 @@ type Plan = {
   reopen_requested: boolean; reopen_request_message: string | null
   weekly_plan_items: { plan_date: string; from_place: string; to_place: string; new_dealers_goal: number; existing_dealers_goal: number; mode_of_travel: string; notes: string }[]
   week_start_date: string; week_end_date: string
+  day_notes?: Record<string, string>
 }
 
 type LogEntry = { id: string; action_type: string; actor_role: string; timestamp: string; previous_status: string | null; new_status: string | null; comment: string | null; users?: { name: string } }
@@ -166,8 +167,10 @@ function MyPlanTab({ userId }: { userId: string | null }) {
   const [reopenModal, setReopenModal] = useState(false)
   const [reopenMessage, setReopenMessage] = useState('')
   const [reopening, setReopening] = useState(false)
+  const [dayNotes, setDayNotes] = useState<Record<string, string>>({})
   // Item 10: in-memory week cache
-  const weekCache = useRef<Map<string, DayData>>(new Map())
+  const weekCache  = useRef<Map<string, DayData>>(new Map())
+  const notesCache = useRef<Map<string, Record<string, string>>>(new Map())
 
   const weekStart = toDateStr(monday)
   const weekEnd = toDateStr(addDays(monday, 6))
@@ -188,12 +191,15 @@ function MyPlanTab({ userId }: { userId: string | null }) {
     const cached = weekCache.current.get(weekStart)
     if (cached && !clearCache) {
       setDayData(cached)
+      setDayNotes(notesCache.current.get(weekStart) ?? {})
     } else if (data && data.weekly_plan_items) {
       setDayData(planItemsToDayData(data.weekly_plan_items, weekDays))
+      setDayNotes(data.day_notes ?? {})
     } else {
       const empty: DayData = {}
       for (const d of weekDays) empty[d] = []
       setDayData(empty)
+      setDayNotes({})
     }
     setLoading(false)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -234,13 +240,13 @@ function MyPlanTab({ userId }: { userId: string | null }) {
     if (!plan) {
       const r = await fetch('/api/weekly-plans', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ week_start_date: weekStart, week_end_date: weekEnd, items })
+        body: JSON.stringify({ week_start_date: weekStart, week_end_date: weekEnd, items, day_notes: dayNotes })
       })
       if (!r.ok) { toast((await r.json()).error, 'error') } else { toast('Draft created'); loadPlan(true) }
     } else {
       const r = await fetch(`/api/weekly-plans/${plan.id}`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items })
+        body: JSON.stringify({ items, day_notes: dayNotes })
       })
       if (!r.ok) { toast((await r.json()).error, 'error') } else { toast('Saved'); loadPlan(true) }
     }
@@ -274,7 +280,7 @@ function MyPlanTab({ userId }: { userId: string | null }) {
     } else if (['Draft', 'Rejected', 'Edited by Manager'].includes(plan.status)) {
       const r = await fetch(`/api/weekly-plans/${plan.id}`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items })
+        body: JSON.stringify({ items, day_notes: dayNotes })
       })
       if (!r.ok) { toast((await r.json()).error, 'error'); setSaving(false); return }
     }
@@ -352,6 +358,7 @@ function MyPlanTab({ userId }: { userId: string | null }) {
   // Item 10: save to cache before navigating
   function navigateWeek(delta: number) {
     weekCache.current.set(weekStart, dayData)
+    notesCache.current.set(weekStart, dayNotes)
     setMonday(d => addDays(d, delta * 7))
   }
 
@@ -550,6 +557,19 @@ function MyPlanTab({ userId }: { userId: string | null }) {
                       </div>
                     )
                   )}
+
+                  {/* Day Focus / Remarks */}
+                  <div className="px-5 pb-4 pt-3 border-t border-gray-100">
+                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Day Focus / Remarks</label>
+                    <textarea
+                      rows={2}
+                      disabled={!canEdit}
+                      value={dayNotes[dateStr] ?? ''}
+                      onChange={e => setDayNotes(prev => ({ ...prev, [dateStr]: e.target.value }))}
+                      placeholder="Add your focus or notes for the day…"
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-green-500 disabled:bg-gray-50 disabled:text-gray-500 placeholder:text-gray-300"
+                    />
+                  </div>
                 </div>
               )
             })}

@@ -1170,6 +1170,130 @@ function SummaryTab({ selectedDate, visits, expenses, planDay }: {
 }
 
 // ---- Main Page (inner — uses useSearchParams, must be inside Suspense) ----
+// ---- Attendance Card ----
+type AttendanceRecord = {
+  id: string
+  check_in_time: string | null
+  check_in_latitude: number | null
+  check_in_longitude: number | null
+  check_out_time: string | null
+  check_out_latitude: number | null
+  check_out_longitude: number | null
+}
+
+function AttendanceCard() {
+  const { toast } = useToast()
+  const todayStr = toDateStr(new Date())
+  const [record, setRecord] = useState<AttendanceRecord | null | undefined>(undefined)
+  const [acting, setActing] = useState(false)
+
+  useEffect(() => {
+    fetch(`/api/attendance?date=${todayStr}`)
+      .then(r => r.json())
+      .then(setRecord)
+      .catch(() => setRecord(null))
+  }, [todayStr])
+
+  function getLocation(): Promise<{ latitude: number; longitude: number } | null> {
+    return new Promise(resolve => {
+      if (!navigator.geolocation) { resolve(null); return }
+      navigator.geolocation.getCurrentPosition(
+        pos => resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
+        () => resolve(null),
+        { timeout: 8000 }
+      )
+    })
+  }
+
+  async function handleCheckIn() {
+    setActing(true)
+    const loc = await getLocation()
+    const res = await fetch('/api/attendance/check-in', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(loc ?? {})
+    })
+    const data = await res.json()
+    if (!res.ok) { toast(data.error ?? 'Check-in failed', 'error') }
+    else { toast('Checked in successfully', 'success'); setRecord(data) }
+    setActing(false)
+  }
+
+  async function handleCheckOut() {
+    setActing(true)
+    const loc = await getLocation()
+    const res = await fetch('/api/attendance/check-out', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(loc ?? {})
+    })
+    const data = await res.json()
+    if (!res.ok) { toast(data.error ?? 'Check-out failed', 'error') }
+    else { toast('Checked out successfully', 'success'); setRecord(data) }
+    setActing(false)
+  }
+
+  const fmtTime = (iso: string) => new Date(iso).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })
+  const fmtCoords = (lat: number | null, lng: number | null) =>
+    lat != null && lng != null ? `${lat.toFixed(4)}, ${lng.toFixed(4)}` : null
+
+  if (record === undefined) return null
+
+  const checkedIn  = !!record?.check_in_time
+  const checkedOut = !!record?.check_out_time
+
+  return (
+    <div className={`rounded-xl border px-4 py-3 mb-4 flex items-center gap-4 ${
+      checkedOut ? 'bg-gray-50 border-gray-200' :
+      checkedIn  ? 'bg-amber-50 border-amber-200' :
+                   'bg-green-50 border-green-200'
+    }`}>
+      {/* Status dot */}
+      <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${checkedOut ? 'bg-gray-400' : checkedIn ? 'bg-amber-500' : 'bg-green-500'}`} />
+
+      {/* Info */}
+      <div className="flex-1 min-w-0">
+        {!checkedIn && (
+          <p className="text-sm font-medium text-green-800">Not checked in yet</p>
+        )}
+        {checkedIn && (
+          <div className="space-y-0.5">
+            <p className="text-sm font-medium text-gray-800">
+              In: <span className="font-semibold">{fmtTime(record!.check_in_time!)}</span>
+              {fmtCoords(record!.check_in_latitude, record!.check_in_longitude) &&
+                <span className="ml-2 text-xs text-gray-500">{fmtCoords(record!.check_in_latitude, record!.check_in_longitude)}</span>
+              }
+            </p>
+            {checkedOut && (
+              <p className="text-sm text-gray-600">
+                Out: <span className="font-semibold">{fmtTime(record!.check_out_time!)}</span>
+                {fmtCoords(record!.check_out_latitude, record!.check_out_longitude) &&
+                  <span className="ml-2 text-xs text-gray-500">{fmtCoords(record!.check_out_latitude, record!.check_out_longitude)}</span>
+                }
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Action button */}
+      {!checkedIn && (
+        <button onClick={handleCheckIn} disabled={acting}
+          className="flex-shrink-0 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold px-4 py-2 rounded-lg disabled:opacity-50 transition">
+          {acting ? 'Locating…' : 'Check In'}
+        </button>
+      )}
+      {checkedIn && !checkedOut && (
+        <button onClick={handleCheckOut} disabled={acting}
+          className="flex-shrink-0 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold px-4 py-2 rounded-lg disabled:opacity-50 transition">
+          {acting ? 'Locating…' : 'Check Out'}
+        </button>
+      )}
+      {checkedOut && (
+        <span className="flex-shrink-0 text-xs font-medium text-gray-500 bg-gray-100 px-3 py-1.5 rounded-lg">Done</span>
+      )}
+    </div>
+  )
+}
+
 function DailyActivityInner() {
   const { toast } = useToast()
   const searchParams = useSearchParams()
@@ -1392,6 +1516,9 @@ function DailyActivityInner() {
           <p className="text-xs text-gray-400 mt-0.5">{displayDate}</p>
         </div>
       </div>
+
+      {/* Attendance — only for today */}
+      {selectedDate === toDateStr(new Date()) && <AttendanceCard />}
 
       {/* Week strip */}
       <WeekStrip

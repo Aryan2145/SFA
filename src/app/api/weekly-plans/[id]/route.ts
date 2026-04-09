@@ -5,9 +5,14 @@ import { requireUser } from '@/lib/auth'
 
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
   const user = await requireUser()
-  const { items } = await req.json()
+  const { items, day_notes } = await req.json()
   const supabase = createServerSupabase()
   const tid = getTenantId()
+
+  // Update day notes on the plan
+  if (day_notes !== undefined) {
+    await supabase.from('weekly_plans').update({ day_notes }).eq('id', params.id)
+  }
 
   // Replace all items
   await supabase.from('weekly_plan_items').delete().eq('weekly_plan_id', params.id)

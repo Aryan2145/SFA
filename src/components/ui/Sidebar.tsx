@@ -144,37 +144,37 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
 
   return (
     <aside className="
-      fixed inset-y-0 left-0 z-50 w-64 bg-white border-r border-gray-200 flex flex-col
+      fixed inset-y-0 left-0 z-50 w-64 bg-green-900 border-r border-green-800 flex flex-col
       md:static md:z-auto md:shrink-0 md:h-dvh
     ">
       {/* Logo */}
       <div className="px-5 py-5">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 bg-teal-600 rounded-xl flex items-center justify-center">
+          <div className="w-9 h-9 bg-green-700 rounded-xl flex items-center justify-center">
             <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375" />
             </svg>
           </div>
           <div>
-            <p className="font-bold text-gray-900 text-sm leading-tight">My Prosys SFA</p>
-            <p className="text-xs text-teal-600 font-medium">{me?.tenantName ?? ''}</p>
+            <p className="font-bold text-white text-sm leading-tight">RGB SFA</p>
+            <p className="text-xs text-green-300 font-medium">{me?.tenantName ?? ''}</p>
           </div>
         </div>
       </div>
 
       {/* Nav */}
       <nav className="flex-1 px-3 pt-2 overflow-y-auto">
-        <p className="px-3 pb-2 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Navigation</p>
+        <p className="px-3 pb-2 text-[11px] font-semibold text-green-500 uppercase tracking-wider">Navigation</p>
         <div className="space-y-0.5">
           {NAV.map(item => (
             <Link key={item.href} href={item.href} onClick={() => { if (window.innerWidth < 768) onClose?.() }}
               className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition
                 ${isActive(item.href)
-                  ? 'bg-green-50 text-green-700'
-                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                  ? 'bg-green-700 text-white'
+                  : 'text-green-100 hover:bg-green-800 hover:text-white'
                 }`}
             >
-              <span className={isActive(item.href) ? 'text-green-600' : 'text-gray-400'}>{item.icon}</span>
+              <span className={isActive(item.href) ? 'text-white' : 'text-green-400'}>{item.icon}</span>
               {item.label}
             </Link>
           ))}
@@ -182,13 +182,13 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
       </nav>
 
       {/* User info + logout */}
-      <div className="px-4 py-4 border-t border-gray-100">
+      <div className="px-4 py-4 border-t border-green-800">
         <div className="flex items-center justify-between">
           <div className="min-w-0">
-            <p className="text-sm font-semibold text-gray-900 truncate">{me?.name ?? 'Loading...'}</p>
-            <p className="text-xs text-gray-500">{me?.phone ?? ''}</p>
+            <p className="text-sm font-semibold text-white truncate">{me?.name ?? 'Loading...'}</p>
+            <p className="text-xs text-green-300">{me?.phone ?? ''}</p>
           </div>
-          <button onClick={handleLogout} className="p-2 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition" title="Logout">
+          <button onClick={handleLogout} className="p-2 rounded-lg text-green-300 hover:text-red-400 hover:bg-red-900/30 transition" title="Logout">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
             </svg>
