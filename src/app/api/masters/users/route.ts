@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
 
   // scope=manage: non-admins see only users in their user_visibility chain
   // Administrators and Superadmin always see all users regardless of scope
-  if (scope === 'manage' && user.userId && user.role !== 'Administrator' && user.role !== 'Superadmin') {
+  if (scope === 'manage' && user.userId && user.role !== 'Administrator') {
     const { data: visibleRows } = await supabase
       .from('user_visibility')
       .select('target_user_id')
@@ -39,18 +39,14 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const user = await requireUser()
   if (!await checkPermission(user, 'users', 'edit')) return forbidden()
-  const { name, email, contact, password, department_id, designation_id, profile, manager_user_id } = await req.json()
+  const { name, email, contact, password, department_id, designation_id, profile, manager_user_id, role_id } = await req.json()
   if (!name?.trim()) return NextResponse.json({ error: 'Name is required' }, { status: 400 })
   if (!email?.trim()) return NextResponse.json({ error: 'Email is required' }, { status: 400 })
   if (!contact?.trim()) return NextResponse.json({ error: 'Contact is required' }, { status: 400 })
   if (!password?.trim()) return NextResponse.json({ error: 'Password is required' }, { status: 400 })
   if (!profile) return NextResponse.json({ error: 'Profile is required' }, { status: 400 })
-  if (user.role !== 'Administrator' && user.role !== 'Superadmin')
+  if (user.role !== 'Administrator')
     return NextResponse.json({ error: 'Only Administrators can create users' }, { status: 403 })
-
-  // Only Superadmin can create users with Administrator role
-  if (profile === 'Administrator' && user.role !== 'Superadmin')
-    return NextResponse.json({ error: 'Only the Superadmin can assign the Administrator role' }, { status: 403 })
 
   const supabase = createServerSupabase()
   const tid = getTenantId()
@@ -72,6 +68,7 @@ export async function POST(req: NextRequest) {
     name: name.trim(), email: email.trim(), contact: contact.trim(), password: hashedPassword,
     department_id: department_id || null, designation_id: designation_id || null,
     profile, manager_user_id: manager_user_id || null, tenant_id: tid,
+    role_id: profile === 'Administrator' ? null : (role_id || null),
   }).select().single()
   if (error) {
     if (error.code === '23505' && error.message.includes('users_tenant_contact'))

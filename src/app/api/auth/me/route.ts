@@ -24,7 +24,6 @@ export async function GET() {
   const supabase = createServerSupabase()
   const tid = getTenantId()
 
-  // Fetch tenant name for all user types
   const { data: tenant } = await supabase
     .from('tenants')
     .select('name')
@@ -32,7 +31,7 @@ export async function GET() {
     .single()
   const tenantName: string = tenant?.name ?? ''
 
-  if (user.role === 'Superadmin' || user.role === 'Administrator') {
+  if (user.role === 'Administrator') {
     if (!user.userId) return NextResponse.json({ ...user, tenantName, hasSubordinates: false, permissions: allTrue })
     const { count } = await supabase
       .from('user_visibility')
@@ -41,7 +40,12 @@ export async function GET() {
     return NextResponse.json({ ...user, tenantName, hasSubordinates: (count ?? 0) > 0, permissions: allTrue })
   }
 
-  // Standard user — fetch hasSubordinates and role_permissions in parallel
+  // NoRole or Deactivated — return all false, no DB permission lookup needed
+  if (user.role === 'NoRole' || user.role === 'Deactivated') {
+    return NextResponse.json({ ...user, tenantName, hasSubordinates: false, permissions: allFalse })
+  }
+
+  // Standard user with a role — fetch hasSubordinates and role_permissions
   const [visResult, permResult] = await Promise.all([
     user.userId
       ? supabase.from('user_visibility').select('id', { count: 'exact', head: true }).eq('viewer_user_id', user.userId)
@@ -58,7 +62,7 @@ export async function GET() {
     if ((SECTIONS as readonly string[]).includes(row.section)) {
       permissions[row.section as Section] = {
         view: row.can_view,
-        edit: row.can_edit || row.can_create,   // create implies ability to use Add button
+        edit: row.can_edit || row.can_create,
         delete: row.can_delete,
       }
     }

@@ -19,13 +19,13 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     .single()
   if (error) return NextResponse.json({ error: error.message }, { status: 404 })
 
-  const [{ count: totalUsers }, { count: activeUsers }, { data: adminUser }] = await Promise.all([
+  const [{ count: totalUsers }, { count: activeUsers }, { data: adminUsers }] = await Promise.all([
     supabase.from('users').select('*', { count: 'exact', head: true }).eq('tenant_id', params.id),
     supabase.from('users').select('*', { count: 'exact', head: true }).eq('tenant_id', params.id).eq('status', 'Active'),
-    supabase.from('users').select('id,name,email,contact').eq('tenant_id', params.id).eq('profile', 'Administrator').order('created_at', { ascending: true }).limit(1).maybeSingle(),
+    supabase.from('users').select('id,name,email,contact,status').eq('tenant_id', params.id).eq('profile', 'Administrator').order('created_at', { ascending: true }),
   ])
 
-  return NextResponse.json({ ...tenant, total_users: totalUsers ?? 0, active_users: activeUsers ?? 0, adminUser: adminUser ?? null })
+  return NextResponse.json({ ...tenant, total_users: totalUsers ?? 0, active_users: activeUsers ?? 0, adminUsers: adminUsers ?? [] })
 }
 
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {

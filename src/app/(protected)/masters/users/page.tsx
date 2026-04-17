@@ -11,7 +11,8 @@ import { useToast } from '@/contexts/ToastContext'
 
 type Dept = { id: string; name: string }
 type Desig = { id: string; name: string; department_id: string }
-type UserRow = { id: string; name: string; is_superadmin?: boolean }
+type UserRow = { id: string; name: string }
+type Role = { id: string; name: string }
 type DeactivateSummary = { direct_reports: number; active_meetings: number; pending_plans: number; open_orders: number }
 type AuditEntry = { id: string; target_user_name: string; action: string; performed_by_name: string; metadata: Record<string, unknown>; created_at: string }
 
@@ -34,21 +35,19 @@ const COLS: Column[] = [
   { key: 'name', label: 'Name' },
   { key: 'contact', label: 'Contact' },
   { key: 'email', label: 'Email' },
-  { key: 'profile', label: 'Profile', render: r => r.is_superadmin
-    ? <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700">★ Superadmin</span>
-    : String(r.profile ?? '')
-  },
+  { key: 'profile', label: 'Profile', render: r => String(r.profile ?? '') },
+  { key: 'roles', label: 'Role', render: r => (r.roles as { name: string } | null)?.name ?? '—' },
   { key: 'manager', label: 'Manager', render: r => (r.manager as { name: string } | null)?.name ?? '—' },
   { key: 'status', label: 'Status', render: r => <StatusBadge status={String(r.status)} /> },
 ]
 
-const INIT = { name: '', email: '', contact: '', password: '', department_id: '', designation_id: '', profile: 'Standard', manager_user_id: '' }
+const INIT = { name: '', email: '', contact: '', password: '', department_id: '', designation_id: '', profile: 'Standard', manager_user_id: '', role_id: '' }
 
 export default function UsersPage() {
   const crud = useCrud('/api/masters/users', { scope: 'manage' })
   const me = useMe()
   const { toast } = useToast()
-  const isAdmin = me?.role === 'Administrator' || me?.role === 'Superadmin'
+  const isAdmin = me?.role === 'Administrator'
   const canEdit = isAdmin || (me?.permissions?.users?.edit ?? false)
   const canDelete = isAdmin || (me?.permissions?.users?.delete ?? false)
 
@@ -62,6 +61,7 @@ export default function UsersPage() {
   const [depts, setDepts] = useState<Dept[]>([])
   const [allDesigs, setAllDesigs] = useState<Desig[]>([])
   const [allUsers, setAllUsers] = useState<UserRow[]>([])
+  const [roles, setRoles] = useState<Role[]>([])
   const [license, setLicense] = useState<{ used: number; limit: number | null } | null>(null)
   const [limitError, setLimitError] = useState(false)
 
@@ -73,7 +73,7 @@ export default function UsersPage() {
 
   // Reactivation flow
   const [reactivateTarget, setReactivateTarget] = useState<Record<string, unknown> | null>(null)
-  const [reactivateForm, setReactivateForm] = useState({ profile: 'Standard', manager_user_id: '' })
+  const [reactivateForm, setReactivateForm] = useState({ profile: 'Standard', manager_user_id: '', role_id: '' })
   const [reactivateError, setReactivateError] = useState('')
   const [reactivateSaving, setReactivateSaving] = useState(false)
 
@@ -90,6 +90,7 @@ export default function UsersPage() {
   useEffect(() => {
     fetch('/api/masters/departments').then(r => r.json()).then(d => setDepts(Array.isArray(d) ? d : [])).catch(() => toast('Failed to load user data. Please refresh.', 'error'))
     fetch('/api/masters/designations').then(r => r.json()).then(d => setAllDesigs(Array.isArray(d) ? d : [])).catch(() => toast('Failed to load user data. Please refresh.', 'error'))
+    fetch('/api/masters/roles').then(r => r.json()).then(d => setRoles(Array.isArray(d) ? d : [])).catch(() => {})
     refreshLists()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -107,15 +108,11 @@ export default function UsersPage() {
     setEditing(null); setForm(INIT); setFormError(''); setEmailError(''); setShowPassword(false); setOpen(true)
   }
   function openEdit(row: Record<string, unknown>) {
-    if (row.is_superadmin && me?.role !== 'Superadmin') {
-      toast('The Superadmin account can only be edited by the Superadmin themselves', 'error')
-      return
-    }
     setEditing(row)
     setFormError('')
     setEmailError('')
     setShowPassword(false)
-    setForm({ name: String(row.name), email: String(row.email), contact: String(row.contact), password: '', department_id: String(row.department_id ?? ''), designation_id: String(row.designation_id ?? ''), profile: String(row.profile), manager_user_id: String(row.manager_user_id ?? '') })
+    setForm({ name: String(row.name), email: String(row.email ?? ''), contact: String(row.contact), password: '', department_id: String(row.department_id ?? ''), designation_id: String(row.designation_id ?? ''), profile: String(row.profile), manager_user_id: String(row.manager_user_id ?? ''), role_id: String((row.roles as { id: string } | null)?.id ?? '') })
     setOpen(true)
   }
 
@@ -130,7 +127,7 @@ export default function UsersPage() {
     if (!form.profile) { setFormError('Profile is required'); return }
     if (!editing && !form.password.trim()) { setFormError('Password is required for new users'); return }
     setSaving(true)
-    const body: Record<string, unknown> = { name: form.name.trim(), email: form.email.trim(), contact: form.contact.trim(), department_id: form.department_id || null, designation_id: form.designation_id || null, profile: form.profile, manager_user_id: form.manager_user_id || null }
+    const body: Record<string, unknown> = { name: form.name.trim(), email: form.email.trim(), contact: form.contact.trim(), department_id: form.department_id || null, designation_id: form.designation_id || null, profile: form.profile, manager_user_id: form.manager_user_id || null, role_id: form.profile === 'Administrator' ? null : (form.role_id || null) }
     if (!editing || form.password.trim()) body.password = form.password.trim()
     try {
       const res = await fetch(editing ? `/api/masters/users/${editing.id as string}` : '/api/masters/users', {
@@ -191,6 +188,7 @@ export default function UsersPage() {
     setReactivateForm({
       profile: String(row.profile ?? 'Standard'),
       manager_user_id: String(row.manager_user_id ?? ''),
+      role_id: String((row.roles as { id: string } | null)?.id ?? ''),
     })
   }
 
@@ -202,7 +200,7 @@ export default function UsersPage() {
       const res = await fetch(`/api/masters/users/${reactivateTarget.id as string}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'reactivate', ...reactivateForm }),
+        body: JSON.stringify({ action: 'reactivate', ...reactivateForm, role_id: reactivateForm.profile === 'Administrator' ? null : (reactivateForm.role_id || null) }),
       })
       const data = await res.json()
       setReactivateSaving(false)
@@ -235,7 +233,6 @@ export default function UsersPage() {
   // Row actions: Deactivate for Active users, Reactivate for Inactive users
   function renderRowActions(row: Record<string, unknown>): ReactNode {
     if (!canDelete) return null
-    if (row.is_superadmin && me?.role !== 'Superadmin') return null
     if (row.status === 'Active') {
       return (
         <button
@@ -365,14 +362,19 @@ export default function UsersPage() {
           </div>
           <div>
             <label htmlFor="user-profile" className="block text-sm font-medium text-gray-700 mb-1">Profile <span className="text-red-500">*</span></label>
-            <select id="user-profile" name="profile" value={form.profile} onChange={e => setF('profile')(e.target.value)}
-              disabled={me?.role !== 'Superadmin'}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-not-allowed">
-              <option value="Standard">Standard</option>
-              {(me?.role === 'Superadmin' || form.profile === 'Administrator') && <option value="Administrator">Administrator</option>}
+            <select id="user-profile" name="profile" value={form.profile} onChange={e => setForm(f => ({ ...f, profile: e.target.value, role_id: '' }))}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <option value="Standard">Standard (User)</option>
+              <option value="Administrator">Administrator</option>
             </select>
-            {me?.role !== 'Superadmin' && <p className="text-xs text-gray-400 mt-1">Role can only be changed by the Superadmin</p>}
           </div>
+          {form.profile === 'Standard' && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Role <span className="text-red-500">*</span></label>
+              <SearchableSelect value={form.role_id} onChange={setF('role_id')} options={roles.map(r => ({ value: r.id, label: r.name }))} placeholder="Select role…" />
+              {roles.length === 0 && <p className="text-xs text-amber-600 mt-1">No roles configured. Create roles in Masters → Roles.</p>}
+            </div>
+          )}
           <div className="col-span-2">
             <p className="block text-sm font-medium text-gray-700 mb-1">Manager</p>
             <SearchableSelect value={form.manager_user_id} onChange={setF('manager_user_id')} options={managerCandidates.map(u => ({ value: u.id, label: u.name }))} placeholder="Select manager…" />
@@ -459,18 +461,24 @@ export default function UsersPage() {
 
             <div className="space-y-3 mb-5">
               <div>
-                <label htmlFor="reactivate-profile" className="block text-sm font-medium text-gray-700 mb-1">Profile / Role</label>
+                <label htmlFor="reactivate-profile" className="block text-sm font-medium text-gray-700 mb-1">Profile</label>
                 <select
                   id="reactivate-profile"
                   name="profile"
                   value={reactivateForm.profile}
-                  onChange={e => setReactivateForm(f => ({ ...f, profile: e.target.value }))}
+                  onChange={e => setReactivateForm(f => ({ ...f, profile: e.target.value, role_id: '' }))}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 >
-                  <option value="Standard">Standard</option>
+                  <option value="Standard">Standard (User)</option>
                   <option value="Administrator">Administrator</option>
                 </select>
               </div>
+              {reactivateForm.profile === 'Standard' && (
+                <div>
+                  <p className="block text-sm font-medium text-gray-700 mb-1">Role</p>
+                  <SearchableSelect value={reactivateForm.role_id} onChange={v => setReactivateForm(f => ({ ...f, role_id: v }))} options={roles.map(r => ({ value: r.id, label: r.name }))} placeholder="Select role…" />
+                </div>
+              )}
               <div>
                 <p className="block text-sm font-medium text-gray-700 mb-1">Reporting Manager</p>
                 <SearchableSelect

@@ -24,11 +24,6 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     .from('users').select('id').eq('contact', contact.trim()).maybeSingle()
   if (existing) return NextResponse.json({ error: 'This phone number is already in use' }, { status: 400 })
 
-  // Get the L1 level for this tenant
-  const { data: level } = await supabase
-    .from('levels').select('id').eq('tenant_id', params.id).eq('level_no', 1).maybeSingle()
-  if (!level) return NextResponse.json({ error: 'No L1 level found for this company' }, { status: 400 })
-
   const { data: user, error } = await supabase
     .from('users')
     .insert({
@@ -38,7 +33,6 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       email: email?.trim() || null,
       password: password.trim(),
       profile: 'Administrator',
-      level_id: level.id,
       status: 'Active',
     })
     .select('id,name,email,contact')

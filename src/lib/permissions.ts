@@ -12,9 +12,8 @@ export async function checkPermission(
   section: PermSection,
   action: PermAction
 ): Promise<boolean> {
-  if (user.role === 'Superadmin') return true
   if (user.role === 'Administrator') return true
-  if (user.role === 'Deactivated') return false
+  if (user.role === 'Deactivated' || user.role === 'NoRole') return false
   const supabase = createServerSupabase()
   const tid = getTenantId()
   const { data } = await supabase
@@ -33,14 +32,12 @@ export async function checkPermission(
   }
 }
 
-/** Returns the data scope for a user+section pair.
- *  Administrator always gets 'all'. Others read from role_permissions.
- *  Falls back to 'own' if no row found (safe default). */
 export async function getDataScope(
   user: SessionUser,
   section: PermSection
 ): Promise<DataScope> {
-  if (user.role === 'Superadmin' || user.role === 'Administrator') return 'all'
+  if (user.role === 'Administrator') return 'all'
+  if (user.role === 'NoRole') return 'own'
   const supabase = createServerSupabase()
   const tid = getTenantId()
   const { data } = await supabase

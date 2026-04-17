@@ -23,23 +23,25 @@ export async function requireUser(): Promise<SessionUser> {
   const user = await getCurrentUser()
   if (!user) throw new Error('Unauthorized')
 
-  // Re-validate role from DB so role changes take effect on next API call
-  // without waiting for session expiry / re-login.
   if (user.userId) {
     try {
       const supabase = createServerSupabase()
       const { data } = await supabase
         .from('users')
-        .select('profile, status, is_superadmin')
+        .select('profile, status, roles(name)')
         .eq('id', user.userId)
         .single()
-      if (data?.profile) user.role = data.profile
-      if (data?.is_superadmin && data?.status !== 'Inactive') user.role = 'Superadmin'
-      // Mark deactivated users — checkPermission will deny all actions
-      // and return proper JSON 403 responses (vs throwing which causes HTML 500)
-      if (data?.status === 'Inactive') user.role = 'Deactivated'
+
+      if (data?.status === 'Inactive') {
+        user.role = 'Deactivated'
+      } else if (data?.profile === 'Administrator') {
+        user.role = 'Administrator'
+      } else {
+        const roleName = (data?.roles as unknown as { name: string } | null)?.name
+        user.role = roleName ?? 'NoRole'
+      }
     } catch {
-      // If DB lookup fails (e.g. during migrations), fall back to session role
+      // Fall back to session role if DB lookup fails
     }
   }
 

@@ -15,12 +15,8 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
   // Fetch existing user to support protections and audit logging
   const { data: existing } = await supabase
-    .from('users').select('name, profile, manager_user_id, is_superadmin').eq('id', params.id).eq('tenant_id', tid).single()
+    .from('users').select('name, profile, manager_user_id').eq('id', params.id).eq('tenant_id', tid).single()
   const oldManagerId = existing?.manager_user_id ?? null
-
-  // Superadmin account protection — only Superadmin can edit the Superadmin
-  if ((existing as unknown as Record<string, unknown>)?.is_superadmin && user.role !== 'Superadmin')
-    return NextResponse.json({ error: 'Only the Superadmin can modify the Superadmin account' }, { status: 403 })
 
   // Self-edit restrictions
   if (params.id === user.userId) {
@@ -33,12 +29,12 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       return NextResponse.json({ error: 'You cannot change your own hierarchy position' }, { status: 400 })
   }
 
-  // Profile (role) changes require Superadmin only
-  if (body.profile && body.profile !== existing?.profile && user.role !== 'Superadmin')
-    return NextResponse.json({ error: 'Only the Superadmin can change a user\'s role' }, { status: 403 })
+  // Profile changes require Administrator
+  if (body.profile && body.profile !== existing?.profile && user.role !== 'Administrator')
+    return NextResponse.json({ error: 'Only Administrators can change a user\'s profile' }, { status: 403 })
 
   // Whitelist allowed fields — prevent arbitrary column injection
-  const ALLOWED_PUT_FIELDS = ['name', 'email', 'contact', 'password', 'department_id', 'designation_id', 'profile', 'manager_user_id']
+  const ALLOWED_PUT_FIELDS = ['name', 'email', 'contact', 'password', 'department_id', 'designation_id', 'profile', 'manager_user_id', 'role_id']
   const safeBody: Record<string, unknown> = {}
   for (const key of ALLOWED_PUT_FIELDS) {
     if (key in body) safeBody[key] = body[key]
@@ -114,28 +110,13 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       )
   }
 
-  const [{ data: targetUser }, { data: actingUserForPatch }] = await Promise.all([
-    supabase.from('users').select('name, profile, manager_user_id, levels(level_no), is_superadmin').eq('id', params.id).eq('tenant_id', tid).single(),
-    u.userId ? supabase.from('users').select('levels(level_no)').eq('id', u.userId).single() : Promise.resolve({ data: null }),
-  ])
+  const { data: targetUser } = await supabase
+    .from('users').select('name, profile, manager_user_id').eq('id', params.id).eq('tenant_id', tid).single()
   if (!targetUser) return NextResponse.json({ error: 'User not found' }, { status: 404 })
 
-  // Superadmin account protection
-  if ((targetUser as unknown as Record<string, unknown>)?.is_superadmin && u.role !== 'Superadmin')
-    return NextResponse.json({ error: 'The Superadmin account cannot be modified' }, { status: 403 })
-
-  // Level hierarchy check: non-admins cannot deactivate/reactivate users at same or higher authority level
-  const patchActingLevelNo = (actingUserForPatch?.levels as unknown as { level_no: number } | null)?.level_no ?? null
-  const patchTargetLevelNo = (targetUser?.levels as unknown as { level_no: number } | null)?.level_no ?? null
-  if (params.id !== u.userId && u.role !== 'Administrator' && u.role !== 'Superadmin') {
-    if (patchActingLevelNo === null)
-      return NextResponse.json({ error: 'Your account does not have a level assigned to manage users' }, { status: 403 })
-    if (patchTargetLevelNo === null || patchTargetLevelNo <= patchActingLevelNo)
-      return NextResponse.json(
-        { error: 'You can only deactivate or reactivate users at lower authority levels than yourself' },
-        { status: 403 }
-      )
-  }
+  // Only Administrators can deactivate/reactivate users
+  if (u.role !== 'Administrator')
+    return NextResponse.json({ error: 'Only Administrators can deactivate or reactivate users' }, { status: 403 })
 
   // Block deactivating the last active Administrator
   if (action === 'deactivate' && targetUser.profile === 'Administrator') {
@@ -150,9 +131,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
 
   const updatePayload: Record<string, unknown> = { status: action === 'deactivate' ? 'Inactive' : 'Active' }
-  // For reactivate, optionally update profile and manager
+  // For reactivate, optionally update profile, role and manager
   if (action === 'reactivate') {
     if (body.profile) updatePayload.profile = body.profile
+    if ('role_id' in body) updatePayload.role_id = body.role_id || null
     if ('manager_user_id' in body) updatePayload.manager_user_id = body.manager_user_id || null
   }
 
@@ -197,9 +179,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
 
   // Block deletion of the last Administrator
   const { data: targetUser } = await supabase
-    .from('users').select('profile, is_superadmin').eq('id', params.id).eq('tenant_id', tid).single()
-  if ((targetUser as unknown as Record<string, unknown>)?.is_superadmin)
-    return NextResponse.json({ error: 'The Superadmin account cannot be deleted' }, { status: 400 })
+    .from('users').select('profile').eq('id', params.id).eq('tenant_id', tid).single()
   if (targetUser?.profile === 'Administrator') {
     const { count: adminCount } = await supabase
       .from('users').select('id', { count: 'exact', head: true })

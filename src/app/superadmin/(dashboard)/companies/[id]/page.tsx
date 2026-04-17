@@ -5,12 +5,14 @@ import { useRouter } from 'next/navigation'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
+type AdminUser = { id: string; name: string; email: string | null; contact: string; status: string }
+
 type Company = {
   id: string; name: string; email: string | null; phone: string | null
   address: string | null; gstin: string | null; license_count: number
   payment_status: 'Active' | 'Overdue' | 'Suspended'; payment_due_date: string | null
   is_active: boolean; total_users: number; active_users: number
-  adminUser: { id: string; name: string; email: string | null; contact: string } | null
+  adminUsers: AdminUser[]
 }
 
 type UsageSummary = {
@@ -430,7 +432,9 @@ export default function CompanyDetailPage({ params }: { params: { id: string } }
     name: '', email: '', phone: '', address: '', gstin: '',
     license_count: '', payment_status: 'Active', payment_due_date: '',
   })
-  const [adminForm, setAdminForm] = useState({ id: '', name: '', email: '', contact: '', newPassword: '' })
+  const [admins, setAdmins] = useState<AdminUser[]>([])
+  const [revokeTarget, setRevokeTarget] = useState<AdminUser | null>(null)
+  const [revokeSaving, setRevokeSaving] = useState(false)
   const [confirmDisable, setConfirmDisable] = useState(false)
   const [showCreateAdmin, setShowCreateAdmin] = useState(false)
   const [createAdminForm, setCreateAdminForm] = useState({ name: '', contact: '', email: '', password: '' })
@@ -442,22 +446,19 @@ export default function CompanyDetailPage({ params }: { params: { id: string } }
     if (!res.ok) { router.push('/superadmin/companies'); return }
     const data: Company = await res.json()
     setCompany(data)
+    setAdmins(data.adminUsers ?? [])
     setForm({
       name: data.name, email: data.email ?? '', phone: data.phone ?? '',
       address: data.address ?? '', gstin: data.gstin ?? '',
       license_count: String(data.license_count),
       payment_status: data.payment_status, payment_due_date: data.payment_due_date ?? '',
     })
-    if (data.adminUser) {
-      setAdminForm({ id: data.adminUser.id, name: data.adminUser.name, email: data.adminUser.email ?? '', contact: data.adminUser.contact, newPassword: '' })
-    }
     setLoading(false)
   }
 
   useEffect(() => { load() }, [id])
 
   const F   = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => setForm(f => ({ ...f, [k]: e.target.value }))
-  const AF  = (k: string) => (e: React.ChangeEvent<HTMLInputElement>) => setAdminForm(f => ({ ...f, [k]: e.target.value }))
   const CAF = (k: string) => (e: React.ChangeEvent<HTMLInputElement>) => setCreateAdminForm(f => ({ ...f, [k]: e.target.value }))
 
   async function handleSave(e: React.FormEvent) {
@@ -471,14 +472,12 @@ export default function CompanyDetailPage({ params }: { params: { id: string } }
         address: form.address.trim() || null, gstin: form.gstin.trim().toUpperCase() || null,
         license_count: Number(form.license_count), payment_status: form.payment_status,
         payment_due_date: form.payment_due_date || null,
-        ...(adminForm.id ? { adminUser: { id: adminForm.id, name: adminForm.name, email: adminForm.email, contact: adminForm.contact, password: adminForm.newPassword || undefined } } : {}),
       }),
     })
     const data = await res.json()
     setSaving(false)
     if (!res.ok) { setError(data.error || 'Save failed'); return }
     setCompany(prev => prev ? { ...prev, ...data } : null)
-    setAdminForm(f => ({ ...f, newPassword: '' }))
     setSuccess('Changes saved successfully')
     setTimeout(() => setSuccess(''), 3000)
   }
@@ -503,6 +502,20 @@ export default function CompanyDetailPage({ params }: { params: { id: string } }
     if (!res.ok) { setCreateAdminError(data.error || 'Failed to create admin'); return }
     setShowCreateAdmin(false)
     setCreateAdminForm({ name: '', contact: '', email: '', password: '' })
+    await load()
+  }
+
+  async function handleRevokeAdmin() {
+    if (!revokeTarget) return
+    setRevokeSaving(true)
+    const res = await fetch(`/api/superadmin/companies/${id}/admins/${revokeTarget.id}`, { method: 'DELETE' })
+    setRevokeSaving(false)
+    setRevokeTarget(null)
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}))
+      setError(d.error || 'Revoke failed')
+      return
+    }
     await load()
   }
 
@@ -534,7 +547,7 @@ export default function CompanyDetailPage({ params }: { params: { id: string } }
       </div>
 
       {/* Banners */}
-      {!company.adminUser && (
+      {admins.length === 0 && (
         <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 flex items-center justify-between gap-4">
           <div className="text-sm text-amber-800"><span className="font-semibold">No Administrator found.</span> This company has no admin user and cannot log in.</div>
           <button onClick={() => setShowCreateAdmin(true)} className="shrink-0 bg-amber-600 text-white px-4 py-1.5 rounded-lg text-sm font-medium hover:bg-amber-700 transition-colors">Create Admin</button>
@@ -623,32 +636,48 @@ export default function CompanyDetailPage({ params }: { params: { id: string } }
             </div>
           </div>
 
-          {adminForm.id && (
-            <div className="border-t border-gray-100 pt-4 space-y-4">
+          {/* Administrators section */}
+          <div className="border-t border-gray-100 pt-4">
+            <div className="flex items-center justify-between mb-3">
               <div>
-                <h2 className="font-medium text-gray-900">Admin User</h2>
-                <p className="text-xs text-gray-500 mt-0.5">Administrator account for this company</p>
+                <h2 className="font-medium text-gray-900">Administrators</h2>
+                <p className="text-xs text-gray-500 mt-0.5">Users with full access to this company</p>
               </div>
-              <div>
-                <label htmlFor="co-admin-name" className="block text-sm font-medium text-gray-700 mb-1">Name</label>
-                <input id="co-admin-name" name="admin_name" type="text" value={adminForm.name} onChange={AF('name')} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label htmlFor="co-admin-phone" className="block text-sm font-medium text-gray-700 mb-1">Phone (Login)</label>
-                  <input id="co-admin-phone" name="admin_contact" type="tel" value={adminForm.contact} onChange={AF('contact')} maxLength={10} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" />
-                </div>
-                <div>
-                  <label htmlFor="co-admin-email" className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                  <input id="co-admin-email" name="admin_email" type="email" value={adminForm.email} onChange={AF('email')} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" />
-                </div>
-              </div>
-              <div>
-                <label htmlFor="co-admin-password" className="block text-sm font-medium text-gray-700 mb-1">New Password <span className="text-gray-400 font-normal">(leave blank to keep current)</span></label>
-                <input id="co-admin-password" name="admin_new_password" type="text" value={adminForm.newPassword} onChange={AF('newPassword')} placeholder="Enter new password to change" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" />
-              </div>
+              <button type="button" onClick={() => setShowCreateAdmin(true)} className="text-sm font-medium text-gray-900 hover:underline">+ Add Admin</button>
             </div>
-          )}
+            {admins.length === 0 ? (
+              <p className="text-sm text-gray-400 py-2">No administrators yet.</p>
+            ) : (
+              <div className="rounded-xl border border-gray-200 overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 border-b border-gray-100">
+                    <tr>
+                      <th className="text-left px-4 py-2.5 text-xs font-medium text-gray-500">Name</th>
+                      <th className="text-left px-4 py-2.5 text-xs font-medium text-gray-500">Phone</th>
+                      <th className="text-left px-4 py-2.5 text-xs font-medium text-gray-500">Email</th>
+                      <th className="text-left px-4 py-2.5 text-xs font-medium text-gray-500">Status</th>
+                      <th className="px-4 py-2.5" />
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {admins.map(a => (
+                      <tr key={a.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-2.5 font-medium text-gray-900">{a.name}</td>
+                        <td className="px-4 py-2.5 text-gray-600">{a.contact}</td>
+                        <td className="px-4 py-2.5 text-gray-500">{a.email ?? '—'}</td>
+                        <td className="px-4 py-2.5">
+                          <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${a.status === 'Active' ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'}`}>{a.status}</span>
+                        </td>
+                        <td className="px-4 py-2.5 text-right">
+                          <button type="button" onClick={() => setRevokeTarget(a)} className="text-xs text-red-600 hover:text-red-800 font-medium">Revoke</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
 
           <div className="flex items-center gap-3 pt-1">
             <button type="submit" disabled={saving} className="bg-gray-900 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-gray-800 transition-colors disabled:opacity-50">
@@ -698,6 +727,21 @@ export default function CompanyDetailPage({ params }: { params: { id: string } }
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Revoke admin confirmation */}
+      {revokeTarget && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
+          <div className="bg-white rounded-xl shadow-xl p-6 max-w-sm w-full">
+            <h3 className="font-semibold text-gray-900 mb-2">Revoke Admin Access?</h3>
+            <p className="text-sm text-gray-500 mb-1"><strong>{revokeTarget.name}</strong> will lose Administrator access immediately.</p>
+            <p className="text-sm text-gray-500 mb-5">They can still log in but will see a &quot;role not configured&quot; screen until the company admin assigns them a role.</p>
+            <div className="flex gap-3">
+              <button onClick={handleRevokeAdmin} disabled={revokeSaving} className="flex-1 bg-red-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-red-700 disabled:opacity-50 transition-colors">{revokeSaving ? 'Revoking…' : 'Revoke'}</button>
+              <button onClick={() => setRevokeTarget(null)} className="flex-1 border border-gray-300 text-gray-600 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors">Cancel</button>
+            </div>
           </div>
         </div>
       )}
