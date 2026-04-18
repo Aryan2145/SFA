@@ -198,6 +198,19 @@ function RolesPermissions() {
     invalidateMeCache()
   }
 
+  async function toggleAll(section: string, allOn: boolean) {
+    if (!selectedRole || selectedRole.name === 'Administrator') return
+    const current = perms[section] ?? EMPTY_PERMS
+    const next: SectionPerms = allOn
+      ? { ...current, view: true, create: true, edit: true, delete: true }
+      : { ...current, view: false, create: false, edit: false, delete: false }
+    setPerms(p => ({ ...p, [section]: next }))
+    setSaving(section)
+    await savePerms(section, next)
+    setSaving(null)
+    invalidateMeCache()
+  }
+
   async function setScope(section: string, data_scope: string) {
     if (!selectedRole || selectedRole.name === 'Administrator') return
     const current = perms[section] ?? EMPTY_PERMS
@@ -342,6 +355,7 @@ function RolesPermissions() {
                 <thead className="bg-gray-50 border-b border-gray-100 sticky top-0 z-10">
                   <tr>
                     <th className="text-left px-4 py-3 font-medium text-gray-600 w-48">Section</th>
+                    <th className="text-center px-3 py-3 font-medium text-gray-600 w-10">All</th>
                     <th className="text-center px-3 py-3 font-medium text-gray-600">View</th>
                     <th className="text-center px-3 py-3 font-medium text-gray-600">Create</th>
                     <th className="text-center px-3 py-3 font-medium text-gray-600">Edit</th>
@@ -357,23 +371,51 @@ function RolesPermissions() {
                     <>
                       {showModuleSep && (
                         <tr key={`mod-${g.module}`} className="bg-blue-600 border-t-2 border-blue-700">
-                          <td colSpan={6} className="px-4 py-2 text-xs font-bold text-white uppercase tracking-wider">
+                          <td colSpan={7} className="px-4 py-2 text-xs font-bold text-white uppercase tracking-wider">
                             {g.module}
                           </td>
                         </tr>
                       )}
                       <tr key={g.group} className="bg-gray-50 border-t border-gray-200">
-                        <td colSpan={6} className="px-4 py-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wide pl-6">
+                        <td colSpan={7} className="px-4 py-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wide pl-6">
                           {g.group}
                         </td>
                       </tr>
                       {g.sections.map(s => {
                         const p = perms[s.key] ?? EMPTY_PERMS
+                        const allOn = p.view && p.create && p.edit && p.delete
+                        const noneOn = !p.view && !p.create && !p.edit && !p.delete
+                        const partial = !allOn && !noneOn
                         return (
                           <tr key={s.key} className="border-t border-gray-50">
                             <td className="px-4 py-2.5 text-gray-700 pl-10">
                               {s.label}
                               {saving === s.key && <span className="ml-2 text-xs text-orange-500">Saving…</span>}
+                            </td>
+                            <td className="px-3 py-2.5 text-center">
+                              <button
+                                onClick={() => toggleAll(s.key, !allOn)}
+                                disabled={isAdmin}
+                                title={allOn ? 'Deselect all' : partial ? 'Select all' : 'Select all'}
+                                className={`w-5 h-5 rounded flex items-center justify-center border transition-colors focus:outline-none disabled:cursor-default ${
+                                  allOn
+                                    ? 'bg-blue-600 border-blue-600 text-white'
+                                    : partial
+                                    ? 'bg-blue-100 border-blue-400 text-blue-600'
+                                    : 'bg-white border-gray-300 hover:border-blue-400'
+                                }`}
+                              >
+                                {allOn && (
+                                  <svg className="w-3 h-3" viewBox="0 0 12 12" fill="none">
+                                    <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                                  </svg>
+                                )}
+                                {partial && (
+                                  <svg className="w-3 h-3" viewBox="0 0 12 12" fill="none">
+                                    <path d="M2.5 6h7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                                  </svg>
+                                )}
+                              </button>
                             </td>
                             {(['view', 'create', 'edit', 'delete'] as const).map(action => (
                               <td key={action} className="px-3 py-2.5 text-center">
