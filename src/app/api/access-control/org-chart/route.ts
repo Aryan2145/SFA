@@ -24,7 +24,7 @@ export async function GET() {
   const result = (data ?? []).map(u => ({
     id: u.id,
     name: u.name,
-    role: (u.designations as { name: string } | null)?.name ?? u.profile ?? '',
+    role: ((u.designations as unknown) as { name: string } | null)?.name ?? u.profile ?? '',
     manager_user_id: u.manager_user_id ?? null,
   }))
 
