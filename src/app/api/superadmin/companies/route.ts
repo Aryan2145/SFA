@@ -81,35 +81,14 @@ export async function POST(req: NextRequest) {
 
   const tid = tenant.id
 
-  // Auto-provision system roles for new tenant
+  // Auto-provision Administrator system role for new tenant
   const { error: rolesError } = await supabase.from('roles').insert([
     { tenant_id: tid, name: 'Administrator', is_system: true },
-    { tenant_id: tid, name: 'Standard', is_system: true },
   ])
   if (rolesError) {
     await supabase.from('tenants').delete().eq('id', tid)
     return NextResponse.json({ error: rolesError.message }, { status: 500 })
   }
-
-  // Seed Standard role permissions — 22 granular sections
-  const MASTER_SECTIONS = [
-    'states', 'districts', 'talukas', 'villages', 'territory_mapping',
-    'dealers', 'distributors', 'institutions',
-    'product_categories', 'product_subcategories', 'products',
-    'departments', 'designations', 'expense_categories',
-    'lead_types', 'lead_stages', 'lead_temperatures',
-  ]
-  const OPERATION_SECTIONS = ['meetings', 'expenses', 'weekly_plan', 'orders', 'leads', 'users']
-  await supabase.from('role_permissions').insert([
-    ...MASTER_SECTIONS.map(s => ({
-      tenant_id: tid, profile: 'Standard', section: s,
-      can_view: true, can_create: false, can_edit: false, can_delete: false, data_scope: 'own',
-    })),
-    ...OPERATION_SECTIONS.map(s => ({
-      tenant_id: tid, profile: 'Standard', section: s,
-      can_view: true, can_create: true, can_edit: false, can_delete: false, data_scope: 'own',
-    })),
-  ])
 
   // Seed lead masters (stages, temperatures, types)
   await Promise.all([

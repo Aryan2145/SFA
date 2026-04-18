@@ -41,10 +41,17 @@ export async function POST(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  // Seed empty permissions for this new role for all sections
-  const SECTIONS = ['locations', 'business', 'products', 'organization', 'orders', 'leads', 'users']
+  // Seed empty permissions for all 22 sections for this new role
+  const ALL_SECTIONS = [
+    'states', 'districts', 'talukas', 'villages', 'territory_mapping',
+    'dealers', 'distributors', 'institutions',
+    'product_categories', 'product_subcategories', 'products',
+    'departments', 'designations', 'expense_categories',
+    'lead_types', 'lead_stages', 'lead_temperatures',
+    'meetings', 'expenses', 'weekly_plan', 'orders', 'leads', 'users',
+  ]
   await supabase.from('role_permissions').upsert(
-    SECTIONS.map(s => ({
+    ALL_SECTIONS.map(s => ({
       tenant_id: tid,
       profile: name.trim(),
       section: s,
