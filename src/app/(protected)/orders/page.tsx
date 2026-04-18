@@ -7,7 +7,7 @@ type OrderRow = {
   id: string
   order_date: string
   order_source: 'meeting' | 'direct'
-  entity_type: 'Dealer' | 'Distributor' | null
+  entity_type: string | null
   entity_id: string | null
   entity_name: string | null
   visit_id: string | null
@@ -29,6 +29,8 @@ type OrderDetail = OrderRow & {
 
 type Product = { id: string; name: string; price: number }
 type TeamMember = { id: string; name: string }
+type LeadType = { id: string; name: string }
+type BizPartner = { id: string; name: string }
 
 type OrderItem = {
   product_id: string | null
@@ -36,9 +38,6 @@ type OrderItem = {
   qty: number
   rate: number
 }
-
-type DealerResult = { id: string; name: string; districts: { name: string } | null }
-type DistributorResult = { id: string; name: string }
 
 const STATUS_COLORS: Record<string, string> = {
   Draft: 'bg-gray-100 text-gray-600',
@@ -67,12 +66,24 @@ function CreateOrderModal({
   const { toast } = useToast()
   const [saving, setSaving] = useState(false)
 
-  // Basic info
-  const [entityType, setEntityType] = useState<'Dealer' | 'Distributor'>('Dealer')
-  const [entitySearch, setEntitySearch] = useState('')
-  const [entityResults, setEntityResults] = useState<(DealerResult | DistributorResult)[]>([])
-  const [entityOpen, setEntityOpen] = useState(false)
-  const [selectedEntity, setSelectedEntity] = useState<{ id: string; name: string; territory?: string } | null>(null)
+  // Lead type + mode
+  const [leadTypes, setLeadTypes] = useState<LeadType[]>([])
+  const [leadType, setLeadType] = useState('')
+  const [mode, setMode] = useState<'existing' | 'lead' | 'new'>('existing')
+
+  // Existing / Lead mode: loaded list + search
+  const [entities, setEntities] = useState<BizPartner[]>([])
+  const [entLoading, setEntLoading] = useState(false)
+  const [entityQuery, setEntityQuery] = useState('')
+  const [entityDropOpen, setEntityDropOpen] = useState(false)
+  const [entityId, setEntityId] = useState('')
+  const [entityName, setEntityName] = useState('')
+
+  // New mode
+  const [newName, setNewName] = useState('')
+  const [newMobile, setNewMobile] = useState('')
+
+  // Order meta
   const [salesExecs, setSalesExecs] = useState<TeamMember[]>([])
   const [salesUserId, setSalesUserId] = useState('')
   const [orderDate, setOrderDate] = useState(() => {
@@ -86,6 +97,12 @@ function CreateOrderModal({
   const [items, setItems] = useState<OrderItem[]>([{ product_id: null, product_name: '', qty: 1, rate: 0 }])
 
   useEffect(() => {
+    fetch('/api/masters/lead-types').then(r => r.json()).then((d: LeadType[]) => {
+      const list = Array.isArray(d) ? d : []
+      setLeadTypes(list)
+      if (list.length > 0) setLeadType(list[0].name)
+    }).catch(() => toast('Failed to load lead types', 'error'))
+
     fetch('/api/masters/products').then(r => r.json()).then(d => {
       setProducts(Array.isArray(d) ? d : [])
     }).catch(() => toast('Failed to load products', 'error'))
@@ -97,31 +114,23 @@ function CreateOrderModal({
         if (team.length > 0) setSalesUserId(team[0].id)
       }).catch(() => toast('Failed to load team members', 'error'))
     }
-  }, [hasSubordinates])
+  }, [hasSubordinates]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Debounced entity search
+  // Load entities when lead type or mode changes (not needed for 'new' mode)
   useEffect(() => {
-    if (!entitySearch.trim() || selectedEntity) { setEntityResults([]); setEntityOpen(false); return }
-    const t = setTimeout(() => {
-      const url = entityType === 'Dealer'
-        ? `/api/masters/dealers?q=${encodeURIComponent(entitySearch)}`
-        : `/api/masters/distributors?q=${encodeURIComponent(entitySearch)}`
-      fetch(url).then(r => r.json()).then(d => {
-        setEntityResults(Array.isArray(d) ? d.slice(0, 8) : [])
-        setEntityOpen(true)
-      }).catch(() => {})
-    }, 300)
-    return () => clearTimeout(t)
-  }, [entitySearch, entityType, selectedEntity])
+    if (!leadType || mode === 'new') { setEntities([]); return }
+    setEntityId(''); setEntityName(''); setEntityQuery('')
+    setEntLoading(true)
+    const status = mode === 'lead' ? 'lead' : 'existing'
+    fetch(`/api/business-partners?type=${encodeURIComponent(leadType)}&status=${status}`)
+      .then(r => r.json())
+      .then(d => { setEntities(Array.isArray(d) ? d : []); setEntLoading(false) })
+      .catch(() => setEntLoading(false))
+  }, [leadType, mode])
 
-  function selectEntity(item: DealerResult | DistributorResult) {
-    const territory = entityType === 'Dealer' && 'districts' in item && (item as DealerResult).districts
-      ? (item as DealerResult).districts!.name
-      : undefined
-    setSelectedEntity({ id: item.id, name: item.name, territory })
-    setEntitySearch(item.name)
-    setEntityOpen(false)
-    setEntityResults([])
+  function resetEntity() {
+    setEntityId(''); setEntityName(''); setEntityQuery(''); setEntityDropOpen(false)
+    setNewName(''); setNewMobile('')
   }
 
   function addRow() {
@@ -136,7 +145,6 @@ function CreateOrderModal({
   function onProductSelect(idx: number, productId: string) {
     const p = products.find(px => px.id === productId)
     if (p) {
-      // Duplicate prevention: if same product_id exists in another row, increment that row's qty
       const existingIdx = items.findIndex((row, i) => i !== idx && row.product_id === p.id)
       if (existingIdx !== -1) {
         setItems(prev => prev.map((row, i) => {
@@ -158,17 +166,22 @@ function CreateOrderModal({
   const total = validItems.reduce((s, i) => s + i.qty * i.rate, 0)
   const totalQty = validItems.reduce((s, i) => s + i.qty, 0)
 
+  const resolvedEntityName = mode === 'new' ? newName.trim() : entityName
+  const resolvedEntityId   = mode === 'new' ? null : entityId
+
   async function handleSave() {
-    if (!selectedEntity) { toast('Please select a dealer or distributor', 'error'); return }
+    if (!leadType) { toast('Please select a lead type', 'error'); return }
+    if (mode !== 'new' && !entityId) { toast(`Please select a ${leadType}`, 'error'); return }
+    if (mode === 'new' && !newName.trim()) { toast('Please enter a name', 'error'); return }
     if (validItems.length === 0) { toast('Add at least one product', 'error'); return }
     if (total <= 0) { toast('Total order value must be greater than 0', 'error'); return }
     setSaving(true)
     try {
       const body: Record<string, unknown> = {
         order_source: 'direct',
-        entity_type: entityType,
-        entity_id: selectedEntity.id,
-        entity_name: selectedEntity.name,
+        entity_type: leadType,
+        entity_id: resolvedEntityId,
+        entity_name: resolvedEntityName,
         order_date: orderDate,
         status,
         items: validItems,
@@ -193,6 +206,10 @@ function CreateOrderModal({
     setSaving(false)
   }
 
+  const filteredEntities = entityQuery
+    ? entities.filter(e => e.name.toLowerCase().includes(entityQuery.toLowerCase()))
+    : entities
+
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
@@ -210,46 +227,87 @@ function CreateOrderModal({
           <div>
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Basic Information</p>
             <div className="space-y-3">
-              {/* Entity type toggle */}
-              <div className="flex gap-2">
-                {(['Dealer', 'Distributor'] as const).map(t => (
-                  <button key={t}
-                    onClick={() => { setEntityType(t); setSelectedEntity(null); setEntitySearch(''); setEntityResults([]) }}
-                    className={`px-4 py-1.5 rounded-full text-sm font-medium transition ${entityType === t ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
-                    {t}
-                  </button>
-                ))}
+
+              {/* Lead Type dropdown */}
+              <div>
+                <label htmlFor="order-lead-type" className="block text-xs text-gray-500 mb-1">Lead Type <span className="text-red-500">*</span></label>
+                <select id="order-lead-type" value={leadType}
+                  onChange={e => { setLeadType(e.target.value); resetEntity() }}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                  <option value="">Select type…</option>
+                  {leadTypes.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
+                </select>
               </div>
 
-              {/* Entity search */}
-              <div className="relative">
-                <label htmlFor="order-entity-search" className="block text-xs text-gray-500 mb-1">{entityType} <span className="text-red-500">*</span></label>
-                <input id="order-entity-search" name="entity_search" type="text" value={entitySearch}
-                  onChange={e => { setEntitySearch(e.target.value); setSelectedEntity(null) }}
-                  onBlur={() => setTimeout(() => setEntityOpen(false), 150)}
-                  placeholder={`Search ${entityType.toLowerCase()}...`}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                {entityOpen && entityResults.length > 0 && (
-                  <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-                    {entityResults.map(item => (
-                      <button key={item.id} onMouseDown={() => selectEntity(item)}
-                        className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50 border-b border-gray-50 last:border-0">
-                        <div className="font-medium text-gray-800">{item.name}</div>
-                        {entityType === 'Dealer' && 'districts' in item && (item as DealerResult).districts && (
-                          <div className="text-xs text-gray-500">{(item as DealerResult).districts?.name}</div>
-                        )}
+              {/* Mode chips */}
+              {leadType && (
+                <div>
+                  <p className="text-xs text-gray-500 mb-1.5">Record Type</p>
+                  <div className="flex gap-2">
+                    {(['existing', 'lead', 'new'] as const).map(m => (
+                      <button key={m} onClick={() => { setMode(m); resetEntity() }}
+                        className={`px-4 py-1.5 rounded-full text-sm font-medium transition ${
+                          mode === m ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        }`}>
+                        {m === 'existing' ? 'Existing' : m === 'lead' ? 'Lead' : 'New'}
                       </button>
                     ))}
                   </div>
-                )}
-              </div>
+                </div>
+              )}
 
-              {/* Area/Territory — auto-filled from dealer's district */}
-              {selectedEntity?.territory && (
+              {/* Existing / Lead: searchable dropdown */}
+              {leadType && mode !== 'new' && (
                 <div>
-                  <p className="block text-xs text-gray-500 mb-1">Area / Territory</p>
-                  <input type="text" value={selectedEntity.territory} readOnly
-                    className="w-full border border-gray-100 rounded-lg px-3 py-2 text-sm bg-gray-50 text-gray-600 cursor-not-allowed" />
+                  <label htmlFor="order-entity-search" className="block text-xs text-gray-500 mb-1">
+                    Select {mode === 'lead' ? 'Lead' : leadType} <span className="text-red-500">*</span>
+                  </label>
+                  {entLoading ? (
+                    <div className="text-sm text-gray-400 py-2">Loading…</div>
+                  ) : (
+                    <div className="relative">
+                      <input id="order-entity-search" type="text" value={entityQuery}
+                        onChange={e => { setEntityQuery(e.target.value); setEntityId(''); setEntityName(''); setEntityDropOpen(true) }}
+                        onFocus={() => setEntityDropOpen(true)}
+                        onBlur={() => setTimeout(() => setEntityDropOpen(false), 150)}
+                        placeholder="Search…"
+                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      {entityDropOpen && (
+                        <ul className="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
+                          {filteredEntities.length === 0 ? (
+                            <li className="px-3 py-2 text-sm text-gray-400">No matches</li>
+                          ) : filteredEntities.map(e => (
+                            <li key={e.id}
+                              onMouseDown={() => { setEntityId(e.id); setEntityName(e.name); setEntityQuery(e.name); setEntityDropOpen(false) }}
+                              className="px-3 py-2 text-sm cursor-pointer hover:bg-blue-50 hover:text-blue-700 border-b border-gray-50 last:border-0">
+                              {e.name}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )}
+                  {entities.length === 0 && !entLoading && (
+                    <p className="text-xs text-amber-600 mt-1">No records found for this type.</p>
+                  )}
+                </div>
+              )}
+
+              {/* New: basic form */}
+              {leadType && mode === 'new' && (
+                <div className="space-y-2">
+                  <div>
+                    <label htmlFor="order-new-name" className="block text-xs text-gray-500 mb-1">Name <span className="text-red-500">*</span></label>
+                    <input id="order-new-name" type="text" value={newName} onChange={e => setNewName(e.target.value)}
+                      placeholder={`Enter ${leadType.toLowerCase()} name`}
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  </div>
+                  <div>
+                    <label htmlFor="order-new-mobile" className="block text-xs text-gray-500 mb-1">Mobile</label>
+                    <input id="order-new-mobile" type="tel" value={newMobile} onChange={e => setNewMobile(e.target.value)}
+                      placeholder="10-digit number" maxLength={10}
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  </div>
                 </div>
               )}
 
@@ -258,7 +316,7 @@ function CreateOrderModal({
                 <div>
                   <label htmlFor="order-sales-exec" className="block text-xs text-gray-500 mb-1">Sales Executive <span className="text-red-500">*</span></label>
                   {hasSubordinates ? (
-                    <select id="order-sales-exec" name="sales_user_id" value={salesUserId} onChange={e => setSalesUserId(e.target.value)}
+                    <select id="order-sales-exec" value={salesUserId} onChange={e => setSalesUserId(e.target.value)}
                       className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
                       {salesExecs.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
                     </select>
@@ -271,7 +329,7 @@ function CreateOrderModal({
                 {/* Order Date */}
                 <div>
                   <label htmlFor="order-date" className="block text-xs text-gray-500 mb-1">Order Date <span className="text-red-500">*</span></label>
-                  <input id="order-date" name="order_date" type="date" value={orderDate} onChange={e => setOrderDate(e.target.value)}
+                  <input id="order-date" type="date" value={orderDate} onChange={e => setOrderDate(e.target.value)}
                     className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                 </div>
               </div>
@@ -279,7 +337,7 @@ function CreateOrderModal({
               {/* Status */}
               <div>
                 <label htmlFor="order-status" className="block text-xs text-gray-500 mb-1">Order Status <span className="text-red-500">*</span></label>
-                <select id="order-status" name="status" value={status} onChange={e => setStatus(e.target.value as typeof status)}
+                <select id="order-status" value={status} onChange={e => setStatus(e.target.value as typeof status)}
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
                   <option value="Draft">Draft</option>
                   <option value="Submitted">Submitted</option>
@@ -359,11 +417,11 @@ function CreateOrderModal({
           </div>
 
           {/* ── Section 3: Summary ── */}
-          {selectedEntity && validItems.length > 0 && (
+          {resolvedEntityName && validItems.length > 0 && (
             <div className="rounded-xl bg-gray-50 border border-gray-200 p-4">
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Order Summary</p>
               <div className="grid grid-cols-2 gap-2 text-sm mb-3">
-                <div><span className="text-gray-500">Entity: </span><span className="font-medium text-gray-800">{selectedEntity.name}</span></div>
+                <div><span className="text-gray-500">Entity: </span><span className="font-medium text-gray-800">{resolvedEntityName}</span></div>
                 <div><span className="text-gray-500">Sales Exec: </span><span className="font-medium text-gray-800">
                   {hasSubordinates ? salesExecs.find(m => m.id === salesUserId)?.name ?? '—' : 'You'}
                 </span></div>

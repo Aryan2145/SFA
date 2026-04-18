@@ -126,16 +126,16 @@ export async function POST(req: NextRequest) {
   // --- Direct order flow ---
   const { order_source, entity_type, entity_id, entity_name, sales_user_id, order_date, status } = body as {
     order_source: 'direct'
-    entity_type: 'Dealer' | 'Distributor'
-    entity_id: string
+    entity_type: string
+    entity_id: string | null
     entity_name: string
     sales_user_id?: string
     order_date: string
     status?: 'Draft' | 'Submitted' | 'Confirmed'
   }
 
-  if (!entity_id || !entity_name || !order_date) {
-    return NextResponse.json({ error: 'entity_id, entity_name and order_date are required' }, { status: 400 })
+  if (!entity_name || !order_date) {
+    return NextResponse.json({ error: 'entity_name and order_date are required' }, { status: 400 })
   }
 
   const effectiveUserId = sales_user_id ?? user.userId!
