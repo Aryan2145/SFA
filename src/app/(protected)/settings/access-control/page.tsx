@@ -7,19 +7,8 @@ import { useToast } from '@/contexts/ToastContext'
 
 type UserEntry = { id: string; name: string }
 type VisibilityEntry = { id: string; target_user_id: string; name: string }
-type OrgRow = {
-  viewer_user_id: string
-  viewer_name: string
-  target_user_id: string
-  target_name: string
-  target_manager_user_id: string | null
-}
-type OrgNode = {
-  id: string
-  name: string
-  isCrossTeam?: boolean
-  children: OrgNode[]
-}
+type OrgUser = { id: string; name: string; role: string; manager_user_id: string | null }
+type OrgNode = { id: string; name: string; role: string; children: OrgNode[] }
 type Role = { id: string; name: string; is_system: boolean }
 type SectionPerms = { view: boolean; create: boolean; edit: boolean; delete: boolean; data_scope: string }
 type PermMap = Record<string, SectionPerms>
@@ -706,152 +695,169 @@ function ReportingSchema({ preselectedUserId }: { preselectedUserId: string | nu
 // ─────────────────────────────────────────────────────────────────
 // Org Chart Tab
 // ─────────────────────────────────────────────────────────────────
+function buildOrgTree(users: OrgUser[]): { roots: OrgNode[]; standalone: OrgUser[] } {
+  const map = new Map<string, OrgNode>()
+  for (const u of users) map.set(u.id, { id: u.id, name: u.name, role: u.role, children: [] })
+
+  const childIds = new Set<string>()
+  for (const u of users) {
+    if (u.manager_user_id && map.has(u.manager_user_id)) {
+      map.get(u.manager_user_id)!.children.push(map.get(u.id)!)
+      childIds.add(u.id)
+    }
+  }
+
+  const roots: OrgNode[] = []
+  const standalone: OrgUser[] = []
+  for (const u of users) {
+    if (!childIds.has(u.id)) {
+      const node = map.get(u.id)!
+      if (node.children.length > 0) roots.push(node)
+      else standalone.push(u)
+    }
+  }
+  return { roots, standalone }
+}
+
+function nodeContains(node: OrgNode, q: string): boolean {
+  if (node.name.toLowerCase().includes(q) || node.role.toLowerCase().includes(q)) return true
+  return node.children.some(c => nodeContains(c, q))
+}
+
 function OrgChart() {
-  const router = useRouter()
-  const [rows, setRows] = useState<OrgRow[]>([])
+  const [users, setUsers] = useState<OrgUser[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
 
   useEffect(() => {
-    // Auto-sync from manager hierarchy, then load org chart
-    fetch('/api/access-control/visibility/bulk-import', { method: 'POST' })
-      .finally(() =>
-        fetch('/api/access-control/visibility/all')
-          .then(r => r.json())
-          .then(data => {
-            setRows(Array.isArray(data) ? data : [])
-            setLoading(false)
-          })
-          .catch(() => setLoading(false))
-      )
+    fetch('/api/access-control/org-chart')
+      .then(r => r.json())
+      .then(d => { setUsers(Array.isArray(d) ? d : []); setLoading(false) })
+      .catch(() => setLoading(false))
   }, [])
 
-  const tree = buildTree(rows)
+  const { roots, standalone } = buildOrgTree(users)
   const q = search.toLowerCase()
-  const filtered = q ? tree.filter(n => nodeMatchesSearch(n, q)) : tree
+  const filteredRoots = q ? roots.filter(n => nodeContains(n, q)) : roots
+  const filteredStandalone = q ? standalone.filter(u => u.name.toLowerCase().includes(q) || u.role.toLowerCase().includes(q)) : standalone
 
-  const configure = (userId: string) => {
-    router.push(`/settings/access-control?tab=schema&selectedUser=${userId}`)
-  }
-
-  if (loading)
-    return <p className="text-sm text-gray-400 py-8 text-center">Loading org chart...</p>
-
-  if (rows.length === 0)
-    return (
-      <p className="text-sm text-gray-400 py-8 text-center">
-        No visibility rules configured. Set them up in the Reporting Schema tab.
-      </p>
-    )
+  if (loading) return <p className="text-sm text-gray-400 py-8 text-center">Loading org chart...</p>
+  if (users.length === 0) return <p className="text-sm text-gray-400 py-8 text-center">No active users found.</p>
 
   return (
     <div>
-      <div className="mb-4">
-        <input
-          type="text"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          placeholder="Search user..."
-          className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 w-64"
-        />
+      <div className="mb-5">
+        <input type="text" value={search} onChange={e => setSearch(e.target.value)}
+          placeholder="Search by name or role..."
+          className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 w-64" />
       </div>
-      <div className="space-y-1">
-        {filtered.map(node => (
-          <OrgNodeView key={node.id} node={node} depth={0} search={q} onConfigure={configure} />
-        ))}
-        {filtered.length === 0 && q && (
-          <p className="text-sm text-gray-400 py-4 text-center">No users match &ldquo;{search}&rdquo;</p>
-        )}
+
+      {/* Scrollable canvas */}
+      <div className="overflow-auto pb-8">
+        <div className="inline-flex flex-col items-center gap-0 min-w-full">
+          {filteredRoots.map(root => (
+            <OrgNodeCard key={root.id} node={root} highlight={q} />
+          ))}
+        </div>
       </div>
+
+      {/* Standalone users */}
+      {filteredStandalone.length > 0 && (
+        <div className="mt-8 pt-6 border-t border-dashed border-gray-200">
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">
+            Standalone — not in any reporting chain
+          </p>
+          <div className="flex flex-wrap gap-3">
+            {filteredStandalone.map(u => (
+              <div key={u.id} className="w-36 rounded-lg overflow-hidden border border-gray-200 shadow-sm opacity-75">
+                <div className="bg-gray-500 px-3 py-1.5 text-center">
+                  <p className="text-[11px] font-semibold text-white truncate">{u.role || 'No Role'}</p>
+                </div>
+                <div className="bg-white px-3 py-2 text-center">
+                  <p className="text-xs text-gray-700 font-medium truncate">{u.name}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {q && filteredRoots.length === 0 && filteredStandalone.length === 0 && (
+        <p className="text-sm text-gray-400 py-4 text-center">No users match &ldquo;{search}&rdquo;</p>
+      )}
     </div>
   )
 }
 
-function buildTree(rows: OrgRow[]): OrgNode[] {
-  const visMap: Record<string, OrgRow[]> = {}
-  const metaMap: Record<string, { name: string }> = {}
-
-  for (const row of rows) {
-    if (!visMap[row.viewer_user_id]) visMap[row.viewer_user_id] = []
-    visMap[row.viewer_user_id].push(row)
-    metaMap[row.viewer_user_id] ??= { name: row.viewer_name }
-    metaMap[row.target_user_id] ??= { name: row.target_name }
-  }
-
-  const targetSet = new Set(rows.map(r => r.target_user_id))
-  const roots = Object.keys(visMap).filter(id => !targetSet.has(id))
-
-  const buildNode = (viewerId: string, visited: Set<string>): OrgNode => {
-    const meta = metaMap[viewerId] ?? { name: 'Unknown' }
-    if (visited.has(viewerId)) return { id: viewerId, name: meta.name, children: [] }
-    const nextVisited = new Set(visited)
-    nextVisited.add(viewerId)
-
-    const children: OrgNode[] = (visMap[viewerId] ?? []).map(row => {
-      const child = visMap[row.target_user_id]
-        ? buildNode(row.target_user_id, nextVisited)
-        : { id: row.target_user_id, name: row.target_name, children: [] }
-      return { ...child, isCrossTeam: row.target_manager_user_id !== viewerId }
-    })
-
-    return { id: viewerId, name: meta.name, children }
-  }
-
-  return roots.map(id => buildNode(id, new Set()))
-}
-
-function nodeMatchesSearch(node: OrgNode, q: string): boolean {
-  if (node.name.toLowerCase().includes(q)) return true
-  return node.children.some(c => nodeMatchesSearch(c, q))
-}
-
-function OrgNodeView({
-  node, depth, search, onConfigure,
-}: {
-  node: OrgNode
-  depth: number
-  search: string
-  onConfigure: (id: string) => void
-}) {
-  const [open, setOpen] = useState(depth < 1)
-  const matches = search && node.name.toLowerCase().includes(search)
+function OrgNodeCard({ node, highlight }: { node: OrgNode; highlight: string }) {
+  const [open, setOpen] = useState(true)
+  const hasChildren = node.children.length > 0
+  const isMatch = highlight && (node.name.toLowerCase().includes(highlight) || node.role.toLowerCase().includes(highlight))
 
   return (
-    <div className={depth > 0 ? 'ml-6 border-l border-gray-200 pl-4' : ''}>
-      <div
-        className={`flex items-center gap-2 py-1.5 px-2 rounded-lg hover:bg-gray-50 transition-colors ${
-          matches ? 'bg-yellow-50' : ''
-        }`}
-      >
-        <Avatar name={node.name} />
-        <span className="font-medium text-sm">{node.name}</span>
-        {node.isCrossTeam && (
-          <span className="text-[10px] text-orange-600 bg-orange-50 px-1.5 py-0.5 rounded-full">cross-team</span>
-        )}
-        <button
-          onClick={() => onConfigure(node.id)}
-          className="ml-auto text-xs text-blue-500 hover:underline flex-shrink-0"
-        >
-          Configure ↗
-        </button>
-        {node.children.length > 0 && (
+    <div className="flex flex-col items-center">
+      {/* Card */}
+      <div className={`w-40 rounded-lg overflow-hidden shadow-sm border-2 transition-all ${
+        isMatch ? 'border-yellow-400 shadow-yellow-100' : 'border-blue-700'
+      }`}>
+        <div className="bg-blue-800 px-3 py-2 text-center">
+          <p className="text-[11px] font-bold text-white leading-tight truncate">{node.role || 'No Role'}</p>
+        </div>
+        <div className="bg-white px-3 py-2.5 text-center border-t border-blue-100">
+          <p className="text-xs font-medium text-gray-800 truncate">{node.name}</p>
+        </div>
+      </div>
+
+      {/* Connector + toggle + children */}
+      {hasChildren && (
+        <>
+          {/* Line down from card */}
+          <div className="w-px h-4 bg-gray-300" />
+
+          {/* Collapse toggle */}
           <button
             onClick={() => setOpen(o => !o)}
-            className="text-gray-400 hover:text-gray-600 text-xs w-5 text-center flex-shrink-0"
+            className="w-5 h-5 rounded-full border border-gray-300 bg-white flex items-center justify-center text-gray-500 text-xs hover:border-blue-400 hover:text-blue-600 transition-colors z-10 leading-none"
+            title={open ? 'Collapse' : 'Expand'}
           >
-            {open ? '▼' : '▶'}
+            {open ? '−' : '+'}
           </button>
-        )}
-      </div>
-      {open && node.children.map(child => (
-        <OrgNodeView
-          key={child.id + '-child-' + node.id}
-          node={child}
-          depth={depth + 1}
-          search={search}
-          onConfigure={onConfigure}
-        />
-      ))}
+
+          {open && (
+            <>
+              {/* Line down from toggle to children row */}
+              <div className="w-px h-4 bg-gray-300" />
+
+              {/* Children row */}
+              <div className="flex items-start">
+                {node.children.map((child, idx) => {
+                  const isFirst = idx === 0
+                  const isLast = idx === node.children.length - 1
+                  const isOnly = node.children.length === 1
+                  return (
+                    <div key={child.id} className="flex flex-col items-center px-3">
+                      {/* Top connector per child */}
+                      <div className="relative w-full h-4 flex items-end justify-center">
+                        {/* Vertical drop */}
+                        <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-px h-4 bg-gray-300" />
+                        {/* Horizontal left half */}
+                        {!isOnly && !isFirst && (
+                          <div className="absolute top-0 right-1/2 left-0 h-px bg-gray-300" />
+                        )}
+                        {/* Horizontal right half */}
+                        {!isOnly && !isLast && (
+                          <div className="absolute top-0 left-1/2 right-0 h-px bg-gray-300" />
+                        )}
+                      </div>
+                      <OrgNodeCard node={child} highlight={highlight} />
+                    </div>
+                  )
+                })}
+              </div>
+            </>
+          )}
+        </>
+      )}
     </div>
   )
 }
