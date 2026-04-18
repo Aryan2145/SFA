@@ -12,8 +12,8 @@ export default function DepartmentsPage() {
   const crud = useCrud('/api/masters/departments')
   const me = useMe()
   const isAdmin = me?.role === 'Administrator'
-  const canEdit = isAdmin || (me?.permissions?.organization?.edit ?? false)
-  const canDelete = isAdmin || (me?.permissions?.organization?.delete ?? false)
+  const canEdit = isAdmin || (me?.permissions?.departments?.edit ?? false)
+  const canDelete = isAdmin || (me?.permissions?.departments?.delete ?? false)
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null)
   const [name, setName] = useState('')

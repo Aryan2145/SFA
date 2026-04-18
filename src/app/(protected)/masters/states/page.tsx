@@ -15,8 +15,8 @@ export default function StatesPage() {
   const crud = useCrud('/api/masters/states')
   const me = useMe()
   const isAdmin = me?.role === 'Administrator'
-  const canEdit = isAdmin || (me?.permissions?.locations?.edit ?? false)
-  const canDelete = isAdmin || (me?.permissions?.locations?.delete ?? false)
+  const canEdit = isAdmin || (me?.permissions?.states?.edit ?? false)
+  const canDelete = isAdmin || (me?.permissions?.states?.delete ?? false)
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null)
   const [name, setName] = useState('')

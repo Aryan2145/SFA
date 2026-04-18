@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
   const user = await requireUser()
-  if (!await checkPermission(user, 'business', 'view')) return forbidden()
+  if (!await checkPermission(user, 'leads', 'view')) return forbidden()
   const q = req.nextUrl.searchParams.get('q') ?? ''
   const type = req.nextUrl.searchParams.get('type') ?? ''
   const supabase = createServerSupabase()
@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const user = await requireUser()
-  if (!await checkPermission(user, 'business', 'edit')) return forbidden()
+  if (!await checkPermission(user, 'leads', 'edit')) return forbidden()
   const {
     name, type, contact_person_name, pincode, gst_number,
     mobile_1, mobile_2, address, description,

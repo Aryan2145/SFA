@@ -90,14 +90,63 @@ function TabButton({ active, onClick, children }: { active: boolean; onClick: ()
 // ─────────────────────────────────────────────────────────────────
 // Roles & Permissions Tab
 // ─────────────────────────────────────────────────────────────────
-const PERM_SECTIONS: { key: string; label: string }[] = [
-  { key: 'locations', label: 'Locations' },
-  { key: 'business', label: 'Business' },
-  { key: 'products', label: 'Products' },
-  { key: 'organization', label: 'Organization' },
-  { key: 'orders', label: 'Orders' },
-  { key: 'leads', label: 'Leads' },
-  { key: 'users', label: 'Users' },
+type PermSectionDef = { key: string; label: string; isOperation?: boolean }
+type PermGroup = { group: string; sections: PermSectionDef[] }
+
+const PERM_GROUPS: PermGroup[] = [
+  {
+    group: 'Locations',
+    sections: [
+      { key: 'states', label: 'States' },
+      { key: 'districts', label: 'Districts' },
+      { key: 'talukas', label: 'Talukas' },
+      { key: 'villages', label: 'Villages' },
+      { key: 'territory_mapping', label: 'Territory Mapping' },
+    ],
+  },
+  {
+    group: 'Business',
+    sections: [
+      { key: 'dealers', label: 'Dealers' },
+      { key: 'distributors', label: 'Distributors' },
+      { key: 'institutions', label: 'Institutions' },
+    ],
+  },
+  {
+    group: 'Products',
+    sections: [
+      { key: 'product_categories', label: 'Product Categories' },
+      { key: 'product_subcategories', label: 'Product Sub-Categories' },
+      { key: 'products', label: 'Products' },
+    ],
+  },
+  {
+    group: 'Organisation',
+    sections: [
+      { key: 'departments', label: 'Departments' },
+      { key: 'designations', label: 'Designations' },
+      { key: 'expense_categories', label: 'Expense Categories' },
+    ],
+  },
+  {
+    group: 'Lead Config',
+    sections: [
+      { key: 'lead_types', label: 'Lead Types' },
+      { key: 'lead_stages', label: 'Lead Stages' },
+      { key: 'lead_temperatures', label: 'Lead Temperatures' },
+    ],
+  },
+  {
+    group: 'Operations',
+    sections: [
+      { key: 'meetings', label: 'Meetings', isOperation: true },
+      { key: 'expenses', label: 'Expenses', isOperation: true },
+      { key: 'weekly_plan', label: 'Weekly Plan', isOperation: true },
+      { key: 'orders', label: 'Orders', isOperation: true },
+      { key: 'leads', label: 'Leads', isOperation: true },
+      { key: 'users', label: 'Users', isOperation: true },
+    ],
+  },
 ]
 
 const EMPTY_PERMS: SectionPerms = { view: false, create: false, edit: false, delete: false, data_scope: 'own' }
@@ -126,9 +175,8 @@ function RolesPermissions() {
   useEffect(() => {
     if (!selectedRole) return
     if (selectedRole.name === 'Administrator') {
-      // Administrator has all permissions — show all as true
       const all: PermMap = {}
-      for (const s of PERM_SECTIONS) all[s.key] = { view: true, create: true, edit: true, delete: true, data_scope: 'all' }
+      for (const g of PERM_GROUPS) for (const s of g.sections) all[s.key] = { view: true, create: true, edit: true, delete: true, data_scope: 'all' }
       setPerms(all)
       return
     }
@@ -296,56 +344,67 @@ function RolesPermissions() {
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 border-b border-gray-100">
                   <tr>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600 w-36">Section</th>
-                    <th className="text-center px-4 py-3 font-medium text-gray-600">View</th>
-                    <th className="text-center px-4 py-3 font-medium text-gray-600">Create</th>
-                    <th className="text-center px-4 py-3 font-medium text-gray-600">Edit</th>
-                    <th className="text-center px-4 py-3 font-medium text-gray-600">Delete</th>
-                    <th className="text-center px-4 py-3 font-medium text-gray-600">Data Scope</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600 w-48">Section</th>
+                    <th className="text-center px-3 py-3 font-medium text-gray-600">View</th>
+                    <th className="text-center px-3 py-3 font-medium text-gray-600">Create</th>
+                    <th className="text-center px-3 py-3 font-medium text-gray-600">Edit</th>
+                    <th className="text-center px-3 py-3 font-medium text-gray-600">Delete</th>
+                    <th className="text-center px-3 py-3 font-medium text-gray-600">Data Scope</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {PERM_SECTIONS.map(s => {
-                    const p = perms[s.key] ?? EMPTY_PERMS
-                    return (
-                      <tr key={s.key} className="border-t border-gray-50">
-                        <td className="px-4 py-3 font-medium text-gray-700">
-                          {s.label}
-                          {saving === s.key && <span className="ml-2 text-xs text-orange-500">Saving…</span>}
-                        </td>
-                        {(['view', 'create', 'edit', 'delete'] as const).map(action => (
-                          <td key={action} className="px-4 py-3 text-center">
-                            <button
-                              onClick={() => toggle(s.key, action, !p[action])}
-                              disabled={isAdmin}
-                              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none disabled:cursor-default ${
-                                p[action] ? 'bg-blue-600' : 'bg-gray-200'
-                              }`}
-                            >
-                              <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${
-                                p[action] ? 'translate-x-4' : 'translate-x-0.5'
-                              }`} />
-                            </button>
-                          </td>
-                        ))}
-                        <td className="px-4 py-3 text-center">
-                          {isAdmin ? (
-                            <span className="text-xs text-gray-400">All</span>
-                          ) : (
-                            <select
-                              value={p.data_scope}
-                              onChange={e => setScope(s.key, e.target.value)}
-                              className="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"
-                            >
-                              <option value="own">Own</option>
-                              <option value="team">Team</option>
-                              <option value="all">All</option>
-                            </select>
-                          )}
+                  {PERM_GROUPS.map(g => (
+                    <>
+                      <tr key={g.group} className="bg-gray-50 border-t border-gray-200">
+                        <td colSpan={6} className="px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                          {g.group}
                         </td>
                       </tr>
-                    )
-                  })}
+                      {g.sections.map(s => {
+                        const p = perms[s.key] ?? EMPTY_PERMS
+                        return (
+                          <tr key={s.key} className="border-t border-gray-50">
+                            <td className="px-4 py-2.5 text-gray-700 pl-6">
+                              {s.label}
+                              {saving === s.key && <span className="ml-2 text-xs text-orange-500">Saving…</span>}
+                            </td>
+                            {(['view', 'create', 'edit', 'delete'] as const).map(action => (
+                              <td key={action} className="px-3 py-2.5 text-center">
+                                <button
+                                  onClick={() => toggle(s.key, action, !p[action])}
+                                  disabled={isAdmin}
+                                  className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none disabled:cursor-default ${
+                                    p[action] ? 'bg-blue-600' : 'bg-gray-200'
+                                  }`}
+                                >
+                                  <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${
+                                    p[action] ? 'translate-x-4' : 'translate-x-0.5'
+                                  }`} />
+                                </button>
+                              </td>
+                            ))}
+                            <td className="px-3 py-2.5 text-center">
+                              {!s.isOperation ? (
+                                <span className="text-xs text-gray-400">—</span>
+                              ) : isAdmin ? (
+                                <span className="text-xs text-gray-400">All</span>
+                              ) : (
+                                <select
+                                  value={p.data_scope}
+                                  onChange={e => setScope(s.key, e.target.value)}
+                                  className="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"
+                                >
+                                  <option value="own">Own</option>
+                                  <option value="team">Team</option>
+                                  <option value="all">All</option>
+                                </select>
+                              )}
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </>
+                  ))}
                 </tbody>
               </table>
             </div>

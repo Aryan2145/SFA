@@ -26,7 +26,7 @@ function uniqueByLower(names: string[]): string[] {
 
 export async function POST(req: NextRequest) {
   const user = await requireUser()
-  if (!await checkPermission(user, 'locations', 'edit')) return forbidden()
+  if (!await checkPermission(user, 'states', 'edit')) return forbidden()
   const body = await req.json() as { rows: RawRow[] }
   if (!Array.isArray(body.rows)) return NextResponse.json({ error: 'rows must be an array' }, { status: 400 })
   if (body.rows.length > 2000) return NextResponse.json({ error: 'Maximum 2000 rows per import' }, { status: 400 })

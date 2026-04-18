@@ -3,10 +3,8 @@
 import { useState, useEffect } from 'react'
 
 export type SectionPerm = { view: boolean; edit: boolean; delete: boolean }
-export type MePermissions = Record<
-  'locations' | 'business' | 'products' | 'organization' | 'users',
-  SectionPerm
->
+export type MePermissions = Record<string, SectionPerm>
+
 export type Me = {
   name: string
   phone: string

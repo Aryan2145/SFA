@@ -43,8 +43,8 @@ export default function DealersPage() {
   const crud = useCrud('/api/masters/dealers')
   const me = useMe()
   const isAdmin = me?.role === 'Administrator'
-  const canEdit = isAdmin || (me?.permissions?.business?.edit ?? false)
-  const canDelete = isAdmin || (me?.permissions?.business?.delete ?? false)
+  const canEdit = isAdmin || (me?.permissions?.dealers?.edit ?? false)
+  const canDelete = isAdmin || (me?.permissions?.dealers?.delete ?? false)
 
   // ── Unassigned filter ───────────────────────────────────────────────────────
   const [showUnassigned, setShowUnassigned] = useState(false)

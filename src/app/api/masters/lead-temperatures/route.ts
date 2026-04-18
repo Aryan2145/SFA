@@ -2,11 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabase } from '@/lib/supabase-server'
 import { getTenantId } from '@/lib/tenant'
 import { requireUser } from '@/lib/auth'
+import { checkPermission, forbidden } from '@/lib/permissions'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
-  await requireUser()
+  const user = await requireUser()
+  if (!await checkPermission(user, 'lead_temperatures', 'view')) return forbidden()
   const supabase = createServerSupabase()
   const { data, error } = await supabase
     .from('lead_temperatures')
@@ -19,7 +21,7 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   const user = await requireUser()
-  if (user.role !== 'Administrator') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  if (!await checkPermission(user, 'lead_temperatures', 'create')) return forbidden()
   const { name, sort_order } = await req.json()
   if (!name?.trim()) return NextResponse.json({ error: 'Name is required' }, { status: 400 })
   const supabase = createServerSupabase()

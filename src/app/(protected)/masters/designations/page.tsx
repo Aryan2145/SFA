@@ -14,8 +14,8 @@ export default function DesignationsPage() {
   const crud = useCrud('/api/masters/designations')
   const me = useMe()
   const isAdmin = me?.role === 'Administrator'
-  const canEdit = isAdmin || (me?.permissions?.organization?.edit ?? false)
-  const canDelete = isAdmin || (me?.permissions?.organization?.delete ?? false)
+  const canEdit = isAdmin || (me?.permissions?.designations?.edit ?? false)
+  const canDelete = isAdmin || (me?.permissions?.designations?.delete ?? false)
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null)
   const [name, setName] = useState('')

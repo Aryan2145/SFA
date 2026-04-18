@@ -12,8 +12,8 @@ export default function ProductCategoriesPage() {
   const crud = useCrud('/api/masters/product-categories')
   const me = useMe()
   const isAdmin = me?.role === 'Administrator'
-  const canEdit = isAdmin || (me?.permissions?.products?.edit ?? false)
-  const canDelete = isAdmin || (me?.permissions?.products?.delete ?? false)
+  const canEdit = isAdmin || (me?.permissions?.product_categories?.edit ?? false)
+  const canDelete = isAdmin || (me?.permissions?.product_categories?.delete ?? false)
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null)
   const [name, setName] = useState(''); const [saving, setSaving] = useState(false)

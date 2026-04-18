@@ -3,9 +3,28 @@ import { createServerSupabase } from './supabase-server'
 import { getTenantId } from './tenant'
 import { SessionUser } from './auth'
 
-export type PermSection = 'locations' | 'business' | 'products' | 'organization' | 'users' | 'orders' | 'leads'
+// Master sections — data_scope not used (always tenant-wide)
+export type MasterSection =
+  | 'states' | 'districts' | 'talukas' | 'villages' | 'territory_mapping'
+  | 'dealers' | 'distributors' | 'institutions'
+  | 'product_categories' | 'product_subcategories' | 'products'
+  | 'departments' | 'designations' | 'expense_categories'
+  | 'lead_types' | 'lead_stages' | 'lead_temperatures'
+
+// Operations sections — data_scope applies (own / team / all)
+export type OperationSection = 'meetings' | 'expenses' | 'weekly_plan' | 'orders' | 'leads' | 'users'
+
+export type PermSection = MasterSection | OperationSection
 export type PermAction = 'view' | 'create' | 'edit' | 'delete'
 export type DataScope = 'own' | 'team' | 'all'
+
+const MASTER_SECTIONS: ReadonlySet<string> = new Set<MasterSection>([
+  'states', 'districts', 'talukas', 'villages', 'territory_mapping',
+  'dealers', 'distributors', 'institutions',
+  'product_categories', 'product_subcategories', 'products',
+  'departments', 'designations', 'expense_categories',
+  'lead_types', 'lead_stages', 'lead_temperatures',
+])
 
 export async function checkPermission(
   user: SessionUser,
@@ -37,6 +56,8 @@ export async function getDataScope(
   section: PermSection
 ): Promise<DataScope> {
   if (user.role === 'Administrator') return 'all'
+  // Master sections are always tenant-wide
+  if (MASTER_SECTIONS.has(section)) return 'all'
   if (user.role === 'NoRole') return 'own'
   const supabase = createServerSupabase()
   const tid = getTenantId()

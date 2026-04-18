@@ -8,7 +8,7 @@ const GSTIN_RE = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/
 
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
   const user = await requireUser()
-  if (!await checkPermission(user, 'business', 'edit')) return forbidden()
+  if (!await checkPermission(user, 'distributors', 'edit')) return forbidden()
   const body = await req.json()
   delete body.type
   if (body.mobile_1 && !/^\d{10}$/.test(String(body.mobile_1).trim()))
@@ -35,7 +35,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
   const user = await requireUser()
-  if (!await checkPermission(user, 'business', 'delete')) return forbidden()
+  if (!await checkPermission(user, 'distributors', 'delete')) return forbidden()
   const supabase = createServerSupabase()
   const { error } = await supabase
     .from('business_partners')

@@ -6,7 +6,7 @@ import { checkPermission, forbidden } from '@/lib/permissions'
 
 export async function GET(req: NextRequest) {
   const user = await requireUser()
-  if (!await checkPermission(user, 'organization', 'view')) return forbidden()
+  if (!await checkPermission(user, 'designations', 'view')) return forbidden()
   const q = req.nextUrl.searchParams.get('q') ?? ''
   const departmentId = req.nextUrl.searchParams.get('departmentId')
   const supabase = createServerSupabase()
@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const user = await requireUser()
-  if (!await checkPermission(user, 'organization', 'edit')) return forbidden()
+  if (!await checkPermission(user, 'designations', 'edit')) return forbidden()
   const { name } = await req.json()
   if (!name?.trim()) return NextResponse.json({ error: 'Name is required' }, { status: 400 })
   const supabase = createServerSupabase()

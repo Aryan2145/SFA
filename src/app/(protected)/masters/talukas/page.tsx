@@ -18,8 +18,8 @@ export default function TalukasPage() {
   const me = useMe()
   const { toast } = useToast()
   const isAdmin = me?.role === 'Administrator'
-  const canEdit = isAdmin || (me?.permissions?.locations?.edit ?? false)
-  const canDelete = isAdmin || (me?.permissions?.locations?.delete ?? false)
+  const canEdit = isAdmin || (me?.permissions?.talukas?.edit ?? false)
+  const canDelete = isAdmin || (me?.permissions?.talukas?.delete ?? false)
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null)
   const [name, setName] = useState(''); const [districtId, setDistrictId] = useState('')

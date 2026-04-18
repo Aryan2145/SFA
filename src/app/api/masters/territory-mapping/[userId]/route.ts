@@ -6,7 +6,7 @@ import { checkPermission, forbidden } from '@/lib/permissions'
 
 export async function GET(_req: NextRequest, { params }: { params: { userId: string } }) {
   const sessionUser = await requireUser()
-  if (!await checkPermission(sessionUser, 'locations', 'view')) return forbidden()
+  if (!await checkPermission(sessionUser, 'territory_mapping', 'view')) return forbidden()
   const supabase = createServerSupabase()
   const tid = getTenantId()
 
@@ -26,7 +26,7 @@ export async function GET(_req: NextRequest, { params }: { params: { userId: str
 
 export async function PUT(req: NextRequest, { params }: { params: { userId: string } }) {
   const user = await requireUser()
-  if (!await checkPermission(user, 'locations', 'edit')) return forbidden()
+  if (!await checkPermission(user, 'territory_mapping', 'edit')) return forbidden()
   const { state_ids, district_ids, taluka_ids, village_ids } = await req.json()
   const supabase = createServerSupabase()
   const tid = getTenantId()

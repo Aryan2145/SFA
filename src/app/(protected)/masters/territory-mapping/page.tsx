@@ -9,7 +9,7 @@ type UserRow = { id: string; name: string; contact: string; district_summary: st
 export default function TerritoryMappingPage() {
   const me = useMe()
   const isAdmin = me?.role === 'Administrator'
-  const canEdit = isAdmin || (me?.permissions?.locations?.edit ?? false)
+  const canEdit = isAdmin || (me?.permissions?.territory_mapping?.edit ?? false)
   const [users, setUsers] = useState<UserRow[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')

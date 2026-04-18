@@ -81,49 +81,35 @@ export async function POST(req: NextRequest) {
 
   const tid = tenant.id
 
-  // Auto-create 3 default levels
-  const { data: levels, error: levelsError } = await supabase
-    .from('levels')
-    .insert([
-      { tenant_id: tid, level_no: 1, name: 'Level 1' },
-      { tenant_id: tid, level_no: 2, name: 'Level 2' },
-      { tenant_id: tid, level_no: 3, name: 'Level 3' },
-    ])
-    .select()
-  if (levelsError) {
-    // Rollback tenant
-    await supabase.from('tenants').delete().eq('id', tid)
-    return NextResponse.json({ error: levelsError.message }, { status: 500 })
-  }
-
-  const l1 = levels?.find(l => l.level_no === 1)
-  if (!l1) return NextResponse.json({ error: 'Failed to create default levels' }, { status: 500 })
-
   // Auto-provision system roles for new tenant
   const { error: rolesError } = await supabase.from('roles').insert([
     { tenant_id: tid, name: 'Administrator', is_system: true },
     { tenant_id: tid, name: 'Standard', is_system: true },
   ])
   if (rolesError) {
-    await supabase.from('levels').delete().eq('tenant_id', tid)
     await supabase.from('tenants').delete().eq('id', tid)
     return NextResponse.json({ error: rolesError.message }, { status: 500 })
   }
 
-  // Seed Standard role permissions (sensible defaults — view+create own data)
-  const SECTIONS = ['locations', 'business', 'products', 'organization', 'users', 'orders', 'leads']
-  await supabase.from('role_permissions').insert(
-    SECTIONS.map(s => ({
-      tenant_id: tid,
-      profile: 'Standard',
-      section: s,
-      can_view: true,
-      can_create: true,
-      can_edit: false,
-      can_delete: false,
-      data_scope: 'own',
-    }))
-  )
+  // Seed Standard role permissions — 22 granular sections
+  const MASTER_SECTIONS = [
+    'states', 'districts', 'talukas', 'villages', 'territory_mapping',
+    'dealers', 'distributors', 'institutions',
+    'product_categories', 'product_subcategories', 'products',
+    'departments', 'designations', 'expense_categories',
+    'lead_types', 'lead_stages', 'lead_temperatures',
+  ]
+  const OPERATION_SECTIONS = ['meetings', 'expenses', 'weekly_plan', 'orders', 'leads', 'users']
+  await supabase.from('role_permissions').insert([
+    ...MASTER_SECTIONS.map(s => ({
+      tenant_id: tid, profile: 'Standard', section: s,
+      can_view: true, can_create: false, can_edit: false, can_delete: false, data_scope: 'own',
+    })),
+    ...OPERATION_SECTIONS.map(s => ({
+      tenant_id: tid, profile: 'Standard', section: s,
+      can_view: true, can_create: true, can_edit: false, can_delete: false, data_scope: 'own',
+    })),
+  ])
 
   // Seed lead masters (stages, temperatures, types)
   await Promise.all([
@@ -166,15 +152,12 @@ export async function POST(req: NextRequest) {
       contact: adminPhone.trim(),
       password: adminPassword.trim(),
       profile: 'Administrator',
-      level_id: l1.id,
       status: 'Active',
     })
     .select()
     .single()
   if (userError) {
-    // Rollback
     await supabase.from('roles').delete().eq('tenant_id', tid)
-    await supabase.from('levels').delete().eq('tenant_id', tid)
     await supabase.from('tenants').delete().eq('id', tid)
     return NextResponse.json({ error: userError.message }, { status: 500 })
   }

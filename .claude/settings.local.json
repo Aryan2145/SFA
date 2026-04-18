@@ -39,7 +39,12 @@
       "Bash(rmdir \"D:/RGB_Software/SFA/develop/src/app/api/masters/levels/[id]\")",
       "Bash(ls \"D:/rgb_software/sfa/develop/src/app/\\(protected\\)/masters/dealers\")",
       "Bash(ls \"D:/rgb_software/sfa/develop/src/app/\\(protected\\)/masters/distributors\")",
-      "Bash(ls \"D:/rgb_software/sfa/develop/src/app/\\(protected\\)/masters/institutions\")"
+      "Bash(ls \"D:/rgb_software/sfa/develop/src/app/\\(protected\\)/masters/institutions\")",
+      "Bash(sed -i 's/'\\\\''locations'\\\\''/'\\\\''states'\\\\''/g' C:/Users/Aryan/documents/rgb_software/testing/src/app/api/masters/states/route.ts 'C:/Users/Aryan/documents/rgb_software/testing/src/app/api/masters/states/[id]/route.ts')",
+      "Bash(sed -i 's/'\\\\''locations'\\\\''/'\\\\''districts'\\\\''/g' C:/Users/Aryan/documents/rgb_software/testing/src/app/api/masters/districts/route.ts 'C:/Users/Aryan/documents/rgb_software/testing/src/app/api/masters/districts/[id]/route.ts')",
+      "Bash(sed -i 's/'\\\\''locations'\\\\''/'\\\\''talukas'\\\\''/g' C:/Users/Aryan/documents/rgb_software/testing/src/app/api/masters/talukas/route.ts 'C:/Users/Aryan/documents/rgb_software/testing/src/app/api/masters/talukas/[id]/route.ts')",
+      "Bash(sed -i 's/'\\\\''locations'\\\\''/'\\\\''villages'\\\\''/g' C:/Users/Aryan/documents/rgb_software/testing/src/app/api/masters/villages/route.ts 'C:/Users/Aryan/documents/rgb_software/testing/src/app/api/masters/villages/[id]/route.ts')",
+      "Bash(sed -i 's/'\\\\''locations'\\\\''/'\\\\''territory_mapping'\\\\''/g' C:/Users/Aryan/documents/rgb_software/testing/src/app/api/masters/territory-mapping/route.ts 'C:/Users/Aryan/documents/rgb_software/testing/src/app/api/masters/territory-mapping/[userId]/route.ts')"
     ]
   },
   "enableAllProjectMcpServers": true,

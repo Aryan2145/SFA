@@ -18,8 +18,8 @@ export default function VillagesPage() {
   const me = useMe()
   const { toast } = useToast()
   const isAdmin = me?.role === 'Administrator'
-  const canEdit = isAdmin || (me?.permissions?.locations?.edit ?? false)
-  const canDelete = isAdmin || (me?.permissions?.locations?.delete ?? false)
+  const canEdit = isAdmin || (me?.permissions?.villages?.edit ?? false)
+  const canDelete = isAdmin || (me?.permissions?.villages?.delete ?? false)
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null)
   const [name, setName] = useState(''); const [talukaId, setTalukaId] = useState('')

@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic'
 
 export async function GET() {
   const user = await requireUser()
-  if (!await checkPermission(user, 'locations', 'view')) return forbidden()
+  if (!await checkPermission(user, 'territory_mapping', 'view')) return forbidden()
   const supabase = createServerSupabase()
   const tid = getTenantId()
 

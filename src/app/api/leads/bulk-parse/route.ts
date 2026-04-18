@@ -39,7 +39,7 @@ function cellText(cell: ExcelJS.Cell): string {
 
 export async function POST(req: NextRequest) {
   const user = await requireUser()
-  if (!await checkPermission(user, 'business', 'edit')) return forbidden()
+  if (!await checkPermission(user, 'leads', 'edit')) return forbidden()
 
   let formData: FormData
   try {

@@ -2,15 +2,15 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabase } from '@/lib/supabase-server'
 import { getTenantId } from '@/lib/tenant'
 import { requireUser } from '@/lib/auth'
+import { checkPermission, forbidden } from '@/lib/permissions'
 
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
   const user = await requireUser()
-  if (user.role !== 'Administrator') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  if (!await checkPermission(user, 'lead_stages', 'edit')) return forbidden()
   const { name, sort_order, is_active } = await req.json()
   if (!name?.trim()) return NextResponse.json({ error: 'Name is required' }, { status: 400 })
   const tid = getTenantId()
   const supabase = createServerSupabase()
-  // Check if fixed — fixed stages can toggle is_active but not rename/reorder
   const { data: existing } = await supabase
     .from('lead_stages').select('is_fixed').eq('id', params.id).eq('tenant_id', tid).single()
   const update: Record<string, unknown> = { is_active: is_active ?? true }
@@ -24,7 +24,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
   const user = await requireUser()
-  if (user.role !== 'Administrator') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  if (!await checkPermission(user, 'lead_stages', 'delete')) return forbidden()
   const tid = getTenantId()
   const supabase = createServerSupabase()
   const { data: stage } = await supabase

@@ -6,7 +6,7 @@ import { checkPermission, forbidden } from '@/lib/permissions'
 
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
   const user = await requireUser()
-  if (!await checkPermission(user, 'organization', 'edit')) return forbidden()
+  if (!await checkPermission(user, 'designations', 'edit')) return forbidden()
   const body = await req.json()
   const supabase = createServerSupabase()
   const { data, error } = await supabase
@@ -17,7 +17,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
   const user = await requireUser()
-  if (!await checkPermission(user, 'organization', 'delete')) return forbidden()
+  if (!await checkPermission(user, 'designations', 'delete')) return forbidden()
   const supabase = createServerSupabase()
   const { error } = await supabase
     .from('designations').delete().eq('id', params.id).eq('tenant_id', getTenantId())

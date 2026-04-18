@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabase } from '@/lib/supabase-server'
 import { getTenantId } from '@/lib/tenant'
 import { requireUser } from '@/lib/auth'
+import { checkPermission, forbidden } from '@/lib/permissions'
 
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
   const user = await requireUser()
-  if (user.role !== 'Administrator') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  if (!await checkPermission(user, 'lead_temperatures', 'edit')) return forbidden()
   const { name, sort_order, is_active } = await req.json()
   if (!name?.trim()) return NextResponse.json({ error: 'Name is required' }, { status: 400 })
   const supabase = createServerSupabase()
@@ -21,7 +22,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
   const user = await requireUser()
-  if (user.role !== 'Administrator') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  if (!await checkPermission(user, 'lead_temperatures', 'delete')) return forbidden()
   const supabase = createServerSupabase()
   const { error } = await supabase
     .from('lead_temperatures')

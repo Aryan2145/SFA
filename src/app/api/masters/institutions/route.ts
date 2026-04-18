@@ -8,7 +8,7 @@ const GSTIN_RE = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/
 
 export async function GET(req: NextRequest) {
   const user = await requireUser()
-  if (!await checkPermission(user, 'business', 'view')) return forbidden()
+  if (!await checkPermission(user, 'institutions', 'view')) return forbidden()
   const q = req.nextUrl.searchParams.get('q') ?? ''
   const supabase = createServerSupabase()
   const tid = getTenantId()
@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const user = await requireUser()
-  if (!await checkPermission(user, 'business', 'edit')) return forbidden()
+  if (!await checkPermission(user, 'institutions', 'edit')) return forbidden()
   const {
     name, type, contact_person_name, pincode, gst_number,
     mobile_1, mobile_2, address, description,
