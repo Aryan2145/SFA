@@ -111,7 +111,17 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
   const isAdmin = me?.role === 'Administrator'
   const perms = me?.permissions
 
-  const showMasters = isAdmin || Object.values(perms ?? {}).some(p => p.view)
+  const MASTER_SECTIONS = [
+    'states', 'districts', 'talukas', 'villages', 'territory_mapping',
+    'product_categories', 'product_subcategories', 'products',
+    'departments', 'designations', 'expense_categories',
+    'lead_types', 'lead_stages', 'lead_temperatures',
+  ]
+  const showMasters = isAdmin || MASTER_SECTIONS.some(k => perms?.[k]?.view ?? false)
+  const showDailyActivity = isAdmin || (perms?.meetings?.view ?? false)
+  const showWeeklyPlan = isAdmin || (perms?.weekly_plan?.view ?? false)
+  const showOrders = isAdmin || (perms?.orders?.view ?? false)
+  const showLeads = isAdmin || (perms?.leads?.view ?? false)
   const showUsers = isAdmin || (perms?.users?.view ?? false)
   const showAccessControl = isAdmin
 
@@ -129,10 +139,10 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
 
   const NAV = [
     DASHBOARD_NAV,
-    DAILY_ACTIVITY_NAV,
-    WEEKLY_PLAN_NAV,
-    ORDERS_NAV,
-    LEADS_NAV,
+    ...(showDailyActivity ? [DAILY_ACTIVITY_NAV] : []),
+    ...(showWeeklyPlan ? [WEEKLY_PLAN_NAV] : []),
+    ...(showOrders ? [ORDERS_NAV] : []),
+    ...(showLeads ? [LEADS_NAV] : []),
     ...(showMasters ? [MASTERS_NAV] : []),
     ...(showUsers ? [USERS_NAV] : []),
     ...(showAccessControl ? [ACCESS_CONTROL_NAV] : []),
