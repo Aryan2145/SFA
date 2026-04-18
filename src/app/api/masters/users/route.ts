@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
   const supabase = createServerSupabase()
   const tid = getTenantId()
   let query = supabase.from('users')
-    .select('*, departments(name), designations(name), manager:manager_user_id(id, name)')
+    .select('*, departments(name), designations(name), roles(name), manager:manager_user_id(id, name)')
     .eq('tenant_id', tid).order('name')
   if (q) query = query.or(`name.ilike.%${q}%,email.ilike.%${q}%,contact.ilike.%${q}%`)
 
