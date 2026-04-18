@@ -91,10 +91,11 @@ function TabButton({ active, onClick, children }: { active: boolean; onClick: ()
 // Roles & Permissions Tab
 // ─────────────────────────────────────────────────────────────────
 type PermSectionDef = { key: string; label: string; isOperation?: boolean }
-type PermGroup = { group: string; sections: PermSectionDef[] }
+type PermGroup = { group: string; module: string; sections: PermSectionDef[] }
 
 const PERM_GROUPS: PermGroup[] = [
   {
+    module: 'Masters Module',
     group: 'Locations',
     sections: [
       { key: 'states', label: 'States' },
@@ -105,14 +106,7 @@ const PERM_GROUPS: PermGroup[] = [
     ],
   },
   {
-    group: 'Business',
-    sections: [
-      { key: 'dealers', label: 'Dealers' },
-      { key: 'distributors', label: 'Distributors' },
-      { key: 'institutions', label: 'Institutions' },
-    ],
-  },
-  {
+    module: 'Masters Module',
     group: 'Products',
     sections: [
       { key: 'product_categories', label: 'Product Categories' },
@@ -121,6 +115,7 @@ const PERM_GROUPS: PermGroup[] = [
     ],
   },
   {
+    module: 'Masters Module',
     group: 'Organisation',
     sections: [
       { key: 'departments', label: 'Departments' },
@@ -129,7 +124,8 @@ const PERM_GROUPS: PermGroup[] = [
     ],
   },
   {
-    group: 'Lead Config',
+    module: 'Masters Module',
+    group: 'Lead Configuration',
     sections: [
       { key: 'lead_types', label: 'Lead Types' },
       { key: 'lead_stages', label: 'Lead Stages' },
@@ -137,14 +133,15 @@ const PERM_GROUPS: PermGroup[] = [
     ],
   },
   {
-    group: 'Operations',
+    module: 'Operations Module',
+    group: 'Daily Operations',
     sections: [
       { key: 'meetings', label: 'Meetings', isOperation: true },
       { key: 'expenses', label: 'Expenses', isOperation: true },
       { key: 'weekly_plan', label: 'Weekly Plan', isOperation: true },
       { key: 'orders', label: 'Orders', isOperation: true },
       { key: 'leads', label: 'Leads', isOperation: true },
-      { key: 'users', label: 'Users', isOperation: true },
+      { key: 'users', label: 'Users (Master)', isOperation: true },
     ],
   },
 ]
@@ -340,9 +337,9 @@ function RolesPermissions() {
               )}
             </div>
 
-            <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+            <div className="bg-white border border-gray-200 rounded-xl overflow-auto max-h-[calc(100vh-280px)]">
               <table className="w-full text-sm">
-                <thead className="bg-gray-50 border-b border-gray-100">
+                <thead className="bg-gray-50 border-b border-gray-100 sticky top-0 z-10">
                   <tr>
                     <th className="text-left px-4 py-3 font-medium text-gray-600 w-48">Section</th>
                     <th className="text-center px-3 py-3 font-medium text-gray-600">View</th>
@@ -353,10 +350,20 @@ function RolesPermissions() {
                   </tr>
                 </thead>
                 <tbody>
-                  {PERM_GROUPS.map(g => (
+                  {PERM_GROUPS.map((g, gi) => {
+                    const prevModule = gi > 0 ? PERM_GROUPS[gi - 1].module : null
+                    const showModuleSep = g.module !== prevModule
+                    return (
                     <>
+                      {showModuleSep && (
+                        <tr key={`mod-${g.module}`} className="bg-blue-600 border-t-2 border-blue-700">
+                          <td colSpan={6} className="px-4 py-2 text-xs font-bold text-white uppercase tracking-wider">
+                            {g.module}
+                          </td>
+                        </tr>
+                      )}
                       <tr key={g.group} className="bg-gray-50 border-t border-gray-200">
-                        <td colSpan={6} className="px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                        <td colSpan={6} className="px-4 py-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wide pl-6">
                           {g.group}
                         </td>
                       </tr>
@@ -364,7 +371,7 @@ function RolesPermissions() {
                         const p = perms[s.key] ?? EMPTY_PERMS
                         return (
                           <tr key={s.key} className="border-t border-gray-50">
-                            <td className="px-4 py-2.5 text-gray-700 pl-6">
+                            <td className="px-4 py-2.5 text-gray-700 pl-10">
                               {s.label}
                               {saving === s.key && <span className="ml-2 text-xs text-orange-500">Saving…</span>}
                             </td>
@@ -404,7 +411,8 @@ function RolesPermissions() {
                         )
                       })}
                     </>
-                  ))}
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
