@@ -25,8 +25,13 @@ export function useMe(): Me | null {
   useEffect(() => {
     if (_cache) return
     fetch('/api/auth/me')
-      .then(r => r.json())
-      .then((d: Me) => {
+      .then(async r => {
+        if (r.status === 401) {
+          await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {})
+          window.location.href = '/login'
+          return
+        }
+        const d: Me = await r.json()
         _cache = d
         setMe(d)
       })

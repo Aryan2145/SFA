@@ -410,8 +410,8 @@ function MyPlanTab({ userId }: { userId: string | null }) {
       </div>
 
       {/* Week Goal */}
-      <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50/60 px-5 py-4">
-        <label className="block text-sm font-semibold text-amber-900 mb-1.5">
+      <div className="mb-5 rounded-xl border border-gray-200 bg-white px-5 py-4 shadow-sm">
+        <label className="block text-sm font-semibold text-gray-700 mb-1.5">
           Upcoming week I want to Achieve
         </label>
         <textarea
@@ -420,7 +420,7 @@ function MyPlanTab({ userId }: { userId: string | null }) {
           value={weekGoal}
           onChange={e => setWeekGoal(e.target.value)}
           placeholder="Think in terms of Major closures, New Distributor Appointment, The Orders Expected, Sales value expected, New People to meet…"
-          className="w-full border border-amber-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white disabled:bg-amber-50 disabled:text-gray-600 placeholder:text-amber-300"
+          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white disabled:bg-gray-50 disabled:text-gray-500 placeholder:text-gray-400"
         />
       </div>
 

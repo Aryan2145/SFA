@@ -8,6 +8,7 @@ export type SessionUser = {
   name: string
   role: string
   tenantId: string
+  cv?: number
 }
 
 export async function getCurrentUser(): Promise<SessionUser | null> {

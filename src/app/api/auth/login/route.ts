@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
   // Query user by contact globally (multi-tenant: no tenant filter)
   const { data: user, error: dbError } = await supabase
     .from('users')
-    .select('id, name, profile, contact, password, status, tenant_id')
+    .select('id, name, profile, contact, password, status, tenant_id, credentials_version')
     .eq('contact', phone.trim())
     .order('created_at', { ascending: true })
     .limit(1)
@@ -58,6 +58,7 @@ export async function POST(req: NextRequest) {
       name: user.name,
       role: user.profile,
       tenantId: user.tenant_id ?? process.env.DEFAULT_TENANT_ID ?? '',
+      cv: user.credentials_version ?? 1,
     })
     // Record login event (fire-and-forget, never block login)
     void supabase.from('user_login_logs').insert({

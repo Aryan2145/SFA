@@ -43,6 +43,13 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     safeBody.password = await bcrypt.hash(safeBody.password as string, 12)
   }
 
+  // Increment credentials_version when login credentials change to invalidate existing sessions
+  if (safeBody.password || safeBody.contact) {
+    const { data: cv } = await supabase
+      .from('users').select('credentials_version').eq('id', params.id).single()
+    safeBody.credentials_version = ((cv?.credentials_version as number | null) ?? 1) + 1
+  }
+
   const { data, error } = await supabase
     .from('users').update(safeBody).eq('id', params.id).eq('tenant_id', tid).select().single()
   if (error) {

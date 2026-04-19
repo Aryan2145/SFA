@@ -37,6 +37,15 @@ export async function GET() {
   const supabase = createServerSupabase()
   const tid = getTenantId()
 
+  // Invalidate session if credentials have changed since login
+  if (user.userId && user.cv !== undefined) {
+    const { data: dbUser } = await supabase
+      .from('users').select('credentials_version').eq('id', user.userId).single()
+    if (dbUser && (dbUser.credentials_version ?? 1) !== user.cv) {
+      return NextResponse.json({ error: 'Credentials changed' }, { status: 401 })
+    }
+  }
+
   const { data: tenant } = await supabase
     .from('tenants').select('name').eq('id', tid).single()
   const tenantName: string = tenant?.name ?? ''
