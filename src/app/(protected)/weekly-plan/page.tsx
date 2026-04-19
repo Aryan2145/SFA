@@ -53,6 +53,7 @@ type Plan = {
   weekly_plan_items: { plan_date: string; from_place: string; to_place: string; new_dealers_goal: number; existing_dealers_goal: number; mode_of_travel: string; notes: string }[]
   week_start_date: string; week_end_date: string
   day_notes?: Record<string, string>
+  week_goal?: string | null
 }
 
 type LogEntry = { id: string; action_type: string; actor_role: string; timestamp: string; previous_status: string | null; new_status: string | null; comment: string | null; users?: { name: string } }
@@ -168,9 +169,11 @@ function MyPlanTab({ userId }: { userId: string | null }) {
   const [reopenMessage, setReopenMessage] = useState('')
   const [reopening, setReopening] = useState(false)
   const [dayNotes, setDayNotes] = useState<Record<string, string>>({})
+  const [weekGoal, setWeekGoal] = useState('')
   // Item 10: in-memory week cache
   const weekCache  = useRef<Map<string, DayData>>(new Map())
   const notesCache = useRef<Map<string, Record<string, string>>>(new Map())
+  const goalCache  = useRef<Map<string, string>>(new Map())
 
   const weekStart = toDateStr(monday)
   const weekEnd = toDateStr(addDays(monday, 6))
@@ -192,14 +195,17 @@ function MyPlanTab({ userId }: { userId: string | null }) {
     if (cached && !clearCache) {
       setDayData(cached)
       setDayNotes(notesCache.current.get(weekStart) ?? {})
+      setWeekGoal(goalCache.current.get(weekStart) ?? '')
     } else if (data && data.weekly_plan_items) {
       setDayData(planItemsToDayData(data.weekly_plan_items, weekDays))
       setDayNotes(data.day_notes ?? {})
+      setWeekGoal(data.week_goal ?? '')
     } else {
       const empty: DayData = {}
       for (const d of weekDays) empty[d] = []
       setDayData(empty)
       setDayNotes({})
+      setWeekGoal('')
     }
     setLoading(false)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -240,13 +246,13 @@ function MyPlanTab({ userId }: { userId: string | null }) {
     if (!plan) {
       const r = await fetch('/api/weekly-plans', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ week_start_date: weekStart, week_end_date: weekEnd, items, day_notes: dayNotes })
+        body: JSON.stringify({ week_start_date: weekStart, week_end_date: weekEnd, items, day_notes: dayNotes, week_goal: weekGoal })
       })
       if (!r.ok) { toast((await r.json()).error, 'error') } else { toast('Draft created'); loadPlan(true) }
     } else {
       const r = await fetch(`/api/weekly-plans/${plan.id}`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items, day_notes: dayNotes })
+        body: JSON.stringify({ items, day_notes: dayNotes, week_goal: weekGoal })
       })
       if (!r.ok) { toast((await r.json()).error, 'error') } else { toast('Saved'); loadPlan(true) }
     }
@@ -273,14 +279,14 @@ function MyPlanTab({ userId }: { userId: string | null }) {
     if (!plan) {
       const r = await fetch('/api/weekly-plans', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ week_start_date: weekStart, week_end_date: weekEnd, items })
+        body: JSON.stringify({ week_start_date: weekStart, week_end_date: weekEnd, items, week_goal: weekGoal })
       })
       if (!r.ok) { toast((await r.json()).error, 'error'); setSaving(false); return }
       planId = (await r.json()).id
     } else if (['Draft', 'Rejected', 'Edited by Manager'].includes(plan.status)) {
       const r = await fetch(`/api/weekly-plans/${plan.id}`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items, day_notes: dayNotes })
+        body: JSON.stringify({ items, day_notes: dayNotes, week_goal: weekGoal })
       })
       if (!r.ok) { toast((await r.json()).error, 'error'); setSaving(false); return }
     }
@@ -359,6 +365,7 @@ function MyPlanTab({ userId }: { userId: string | null }) {
   function navigateWeek(delta: number) {
     weekCache.current.set(weekStart, dayData)
     notesCache.current.set(weekStart, dayNotes)
+    goalCache.current.set(weekStart, weekGoal)
     setMonday(d => addDays(d, delta * 7))
   }
 
@@ -400,6 +407,21 @@ function MyPlanTab({ userId }: { userId: string | null }) {
             <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
           </svg>
         </button>
+      </div>
+
+      {/* Week Goal */}
+      <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50/60 px-5 py-4">
+        <label className="block text-sm font-semibold text-amber-900 mb-1.5">
+          Upcoming week I want to Achieve
+        </label>
+        <textarea
+          rows={3}
+          disabled={!canEdit}
+          value={weekGoal}
+          onChange={e => setWeekGoal(e.target.value)}
+          placeholder="Think in terms of Major closures, New Distributor Appointment, The Orders Expected, Sales value expected, New People to meet…"
+          className="w-full border border-amber-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white disabled:bg-amber-50 disabled:text-gray-600 placeholder:text-amber-300"
+        />
       </div>
 
       {/* Status banners */}

@@ -7,7 +7,7 @@ export async function POST(req: NextRequest) {
   const user = await requireUser()
   if (!user.userId) return NextResponse.json({ error: 'User not in DB' }, { status: 400 })
 
-  const { week_start_date, week_end_date, items, day_notes } = await req.json()
+  const { week_start_date, week_end_date, items, day_notes, week_goal } = await req.json()
   if (!week_start_date) return NextResponse.json({ error: 'week_start_date required' }, { status: 400 })
 
   const supabase = createServerSupabase()
@@ -23,6 +23,7 @@ export async function POST(req: NextRequest) {
     current_manager_id: dbUser?.manager_user_id ?? null,
     last_status_changed_at: new Date().toISOString(),
     day_notes: day_notes ?? {},
+    week_goal: week_goal ?? null,
   }).select().single()
 
   if (planErr) return NextResponse.json({ error: planErr.message }, { status: 500 })
