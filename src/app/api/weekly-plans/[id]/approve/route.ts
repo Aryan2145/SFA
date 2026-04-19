@@ -3,6 +3,7 @@ import { createServerSupabase } from '@/lib/supabase-server'
 import { getTenantId } from '@/lib/tenant'
 import { requireUser } from '@/lib/auth'
 import { canView } from '@/lib/visibility'
+import { awardPoint } from '@/lib/points'
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const user = await requireUser()
@@ -48,6 +49,14 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       ? `Your weekly plan has been Approved. Comment: ${comment}`
       : 'Your weekly plan has been Approved.',
   })
+
+  // Award points to plan owner for getting approved
+  if (plan.user_id) {
+    void awardPoint(supabase, tid, plan.user_id, 'weekly_plan_approved', {
+      refType: 'weekly_plan', refId: params.id,
+      description: 'Weekly plan approved by manager',
+    })
+  }
 
   return NextResponse.json({ ok: true })
 }

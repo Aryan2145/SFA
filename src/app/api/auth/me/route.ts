@@ -19,6 +19,8 @@ const ALL_SECTIONS = [
   'lead_types', 'lead_stages', 'lead_temperatures',
   // Operations
   'meetings', 'expenses', 'weekly_plan', 'orders', 'leads', 'users',
+  // Points
+  'leaderboard', 'points_config',
 ] as const
 
 const allTrue: Permissions = ALL_SECTIONS.reduce(

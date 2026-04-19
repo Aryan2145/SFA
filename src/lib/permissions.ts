@@ -14,7 +14,10 @@ export type MasterSection =
 // Operations sections — data_scope applies (own / team / all)
 export type OperationSection = 'meetings' | 'expenses' | 'weekly_plan' | 'orders' | 'leads' | 'users'
 
-export type PermSection = MasterSection | OperationSection
+// Points sections
+export type PointsSection = 'leaderboard' | 'points_config'
+
+export type PermSection = MasterSection | OperationSection | PointsSection
 export type PermAction = 'view' | 'create' | 'edit' | 'delete'
 export type DataScope = 'own' | 'team' | 'all'
 

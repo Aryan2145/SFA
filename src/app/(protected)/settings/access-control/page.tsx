@@ -133,6 +133,14 @@ const PERM_GROUPS: PermGroup[] = [
       { key: 'users', label: 'Users (Master)', isOperation: true },
     ],
   },
+  {
+    module: 'Points Module',
+    group: 'Gamification',
+    sections: [
+      { key: 'leaderboard', label: 'Leaderboard (View Team/All)', isOperation: false },
+      { key: 'points_config', label: 'Points Configuration', isOperation: false },
+    ],
+  },
 ]
 
 const EMPTY_PERMS: SectionPerms = { view: false, create: false, edit: false, delete: false, data_scope: 'own' }

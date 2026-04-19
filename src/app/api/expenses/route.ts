@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabase } from '@/lib/supabase-server'
 import { getTenantId } from '@/lib/tenant'
 import { requireUser } from '@/lib/auth'
+import { awardPoint } from '@/lib/points'
 
 export const dynamic = 'force-dynamic'
 
@@ -29,10 +30,11 @@ export async function POST(req: NextRequest) {
   const today = new Date(); const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
   if (expense_date > todayStr) return NextResponse.json({ error: 'Cannot create expenses for future dates' }, { status: 400 })
   const supabase = createServerSupabase()
+  const tid = getTenantId()
   const { data, error } = await supabase
     .from('expenses')
     .insert({
-      tenant_id: getTenantId(),
+      tenant_id: tid,
       user_id: user.userId,
       expense_date,
       category,
@@ -43,5 +45,6 @@ export async function POST(req: NextRequest) {
     .select()
     .single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  void awardPoint(supabase, tid, user.userId!, 'expense_submitted', { refType: 'expense', refId: data!.id, description: `${category} expense on ${expense_date}` })
   return NextResponse.json(data, { status: 201 })
 }

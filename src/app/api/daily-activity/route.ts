@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabase } from '@/lib/supabase-server'
 import { getTenantId } from '@/lib/tenant'
 import { requireUser } from '@/lib/auth'
+import { awardPoint } from '@/lib/points'
 
 export const dynamic = 'force-dynamic'
 
@@ -51,6 +52,7 @@ export async function POST(req: NextRequest) {
       visit_type, entity_id: bp!.id, entity_name: bp!.name, is_new_entity: true, status: 'Pending',
     }).select().single()
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    void awardPoint(supabase, tid, user.userId!, 'meeting_logged', { refType: 'daily_visit', refId: data!.id, description: `Meeting with ${bp!.name} on ${effectiveDate}` })
     return NextResponse.json(data, { status: 201 })
   }
 
@@ -61,5 +63,6 @@ export async function POST(req: NextRequest) {
     is_new_entity: is_new_entity ?? false, status: 'Pending',
   }).select().single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  void awardPoint(supabase, tid, user.userId!, 'meeting_logged', { refType: 'daily_visit', refId: data!.id, description: `Meeting with ${entity_name.trim()} on ${effectiveDate}` })
   return NextResponse.json(data, { status: 201 })
 }

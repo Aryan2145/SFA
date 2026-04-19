@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabase } from '@/lib/supabase-server'
 import { getTenantId } from '@/lib/tenant'
 import { requireUser } from '@/lib/auth'
+import { awardPoint } from '@/lib/points'
 
 export const dynamic = 'force-dynamic'
 
@@ -42,5 +43,6 @@ export async function POST(req: NextRequest) {
     : await supabase.from('attendance').insert(payload).select().single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  void awardPoint(supabase, tid, user.userId, 'daily_checkin', { description: `Daily check-in on ${today}` })
   return NextResponse.json(data, { status: 201 })
 }
