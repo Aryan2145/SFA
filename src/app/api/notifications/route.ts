@@ -7,6 +7,7 @@ export const dynamic = 'force-dynamic'
 
 export async function GET() {
   const user = await requireUser()
+  if (!user.userId) return NextResponse.json([])
   const supabase = createServerSupabase()
   const { data, error } = await supabase
     .from('notifications')
