@@ -133,7 +133,7 @@ function PlaceCombobox({ value, onChange, options, disabled }: {
         className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-500"
       />
       {!disabled && open && (
-        <div className="absolute z-20 left-0 right-0 top-full mt-0.5 bg-white border border-gray-200 rounded-lg shadow-lg min-h-[216px] max-h-64 overflow-y-auto">
+        <div className="absolute z-30 left-0 right-0 top-full mt-0.5 bg-white border border-gray-200 rounded-lg shadow-lg max-h-56 sm:min-h-[216px] sm:max-h-64 overflow-y-auto">
           {filtered.length === 0 ? (
             <p className="px-3 py-2 text-sm text-gray-400">No places found</p>
           ) : (
@@ -410,7 +410,7 @@ function MyPlanTab({ userId }: { userId: string | null }) {
       </div>
 
       {/* Week Goal */}
-      <div className="mb-5 rounded-xl border border-gray-200 bg-white px-5 py-4 shadow-sm">
+      <div className="mb-5 rounded-xl border border-gray-200 bg-white px-4 sm:px-5 py-4 shadow-sm">
         <label className="block text-sm font-semibold text-gray-700 mb-1.5">
           Upcoming week I want to Achieve
         </label>
@@ -420,7 +420,7 @@ function MyPlanTab({ userId }: { userId: string | null }) {
           value={weekGoal}
           onChange={e => setWeekGoal(e.target.value)}
           placeholder="Think in terms of Major closures, New Distributor Appointment, The Orders Expected, Sales value expected, New People to meet…"
-          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white disabled:bg-gray-50 disabled:text-gray-500 placeholder:text-gray-400"
+          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white disabled:bg-gray-50 disabled:text-gray-500 placeholder:text-gray-500"
         />
       </div>
 
@@ -508,7 +508,7 @@ function MyPlanTab({ userId }: { userId: string | null }) {
               return (
                 <div key={dateStr} className={`rounded-xl border bg-white ${today ? 'border-blue-400 ring-1 ring-blue-200' : 'border-gray-200'}`}>
                   {/* Day header */}
-                  <div className="px-5 pt-4 pb-2">
+                  <div className="px-4 sm:px-5 pt-4 pb-2">
                     <div className="flex items-center gap-2">
                       <h3 className="text-sm font-semibold text-gray-900">{formatDayHeader(dateStr)}</h3>
                       {today && (
@@ -517,8 +517,8 @@ function MyPlanTab({ userId }: { userId: string | null }) {
                     </div>
                   </div>
 
-                  {/* Column headers */}
-                  <div className="px-5 pb-1">
+                  {/* Column headers — desktop only */}
+                  <div className="hidden sm:block px-5 pb-1">
                     <div className="flex items-center gap-2 text-xs font-medium text-gray-500">
                       <span className="flex-1">Place</span>
                       <span className="w-[72px] text-center">Dist.</span>
@@ -529,35 +529,68 @@ function MyPlanTab({ userId }: { userId: string | null }) {
                   </div>
 
                   {/* Entries */}
-                  <div className="px-5 pb-2 space-y-2">
+                  <div className="px-4 sm:px-5 pb-2 space-y-3 sm:space-y-2">
                     {entries.length === 0 ? (
                       <p className="text-sm text-gray-400 text-center py-3">No entries yet</p>
                     ) : (
                       entries.map(entry => (
-                        <div key={entry.id} className="flex items-center gap-2">
-                          {/* Item 2: PlaceCombobox replaces select */}
-                          <PlaceCombobox
-                            value={entry.place}
-                            onChange={v => updatePlace(dateStr, entry.id, 'place', v)}
-                            options={villages}
-                            disabled={!canEdit}
-                          />
-                          <input type="number" min={0} disabled={!canEdit} value={entry.dist}
-                            onChange={e => updatePlace(dateStr, entry.id, 'dist', Number(e.target.value))}
-                            className="w-[72px] border border-gray-200 rounded-lg px-2 py-2 text-sm text-center focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50" />
-                          <input type="number" min={0} disabled={!canEdit} value={entry.dealer}
-                            onChange={e => updatePlace(dateStr, entry.id, 'dealer', Number(e.target.value))}
-                            className="w-[72px] border border-gray-200 rounded-lg px-2 py-2 text-sm text-center focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50" />
-                          <input type="number" min={0} disabled={!canEdit} value={entry.others}
-                            onChange={e => updatePlace(dateStr, entry.id, 'others', Number(e.target.value))}
-                            className="w-[72px] border border-gray-200 rounded-lg px-2 py-2 text-sm text-center focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50" />
-                          {canEdit && (
-                            <button onClick={() => removePlace(dateStr, entry.id)} className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-red-500 transition">
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                              </svg>
-                            </button>
-                          )}
+                        <div key={entry.id} className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-2 pb-3 sm:pb-0 border-b border-gray-100 sm:border-0 last:border-0 last:pb-0">
+                          {/* Place — full width on mobile */}
+                          <div className="flex items-center gap-2 sm:contents">
+                            <PlaceCombobox
+                              value={entry.place}
+                              onChange={v => updatePlace(dateStr, entry.id, 'place', v)}
+                              options={villages}
+                              disabled={!canEdit}
+                            />
+                            {canEdit && (
+                              <button onClick={() => removePlace(dateStr, entry.id)} className="sm:hidden w-9 h-9 flex-shrink-0 flex items-center justify-center text-gray-400 hover:text-red-500 transition rounded-lg border border-gray-200">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </button>
+                            )}
+                          </div>
+                          {/* Numeric inputs — wrap row on mobile with labels */}
+                          <div className="flex items-center gap-2 sm:contents">
+                            <label className="flex-1 sm:hidden">
+                              <span className="block text-[11px] font-medium text-gray-500 mb-1">Dist.</span>
+                              <input type="number" min={0} disabled={!canEdit} value={entry.dist}
+                                onChange={e => updatePlace(dateStr, entry.id, 'dist', Number(e.target.value))}
+                                className="w-full border border-gray-200 rounded-lg px-2 py-2 text-sm text-center text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50" />
+                            </label>
+                            <input type="number" min={0} disabled={!canEdit} value={entry.dist}
+                              onChange={e => updatePlace(dateStr, entry.id, 'dist', Number(e.target.value))}
+                              className="hidden sm:block w-[72px] border border-gray-200 rounded-lg px-2 py-2 text-sm text-center text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50" />
+
+                            <label className="flex-1 sm:hidden">
+                              <span className="block text-[11px] font-medium text-gray-500 mb-1">Dealer</span>
+                              <input type="number" min={0} disabled={!canEdit} value={entry.dealer}
+                                onChange={e => updatePlace(dateStr, entry.id, 'dealer', Number(e.target.value))}
+                                className="w-full border border-gray-200 rounded-lg px-2 py-2 text-sm text-center text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50" />
+                            </label>
+                            <input type="number" min={0} disabled={!canEdit} value={entry.dealer}
+                              onChange={e => updatePlace(dateStr, entry.id, 'dealer', Number(e.target.value))}
+                              className="hidden sm:block w-[72px] border border-gray-200 rounded-lg px-2 py-2 text-sm text-center text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50" />
+
+                            <label className="flex-1 sm:hidden">
+                              <span className="block text-[11px] font-medium text-gray-500 mb-1">Others</span>
+                              <input type="number" min={0} disabled={!canEdit} value={entry.others}
+                                onChange={e => updatePlace(dateStr, entry.id, 'others', Number(e.target.value))}
+                                className="w-full border border-gray-200 rounded-lg px-2 py-2 text-sm text-center text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50" />
+                            </label>
+                            <input type="number" min={0} disabled={!canEdit} value={entry.others}
+                              onChange={e => updatePlace(dateStr, entry.id, 'others', Number(e.target.value))}
+                              className="hidden sm:block w-[72px] border border-gray-200 rounded-lg px-2 py-2 text-sm text-center text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50" />
+
+                            {canEdit && (
+                              <button onClick={() => removePlace(dateStr, entry.id)} className="hidden sm:flex w-8 h-8 items-center justify-center text-gray-400 hover:text-red-500 transition">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </button>
+                            )}
+                          </div>
                         </div>
                       ))
                     )}
@@ -567,29 +600,29 @@ function MyPlanTab({ userId }: { userId: string | null }) {
                   {canEdit && (
                     canAddPlace(dateStr) ? (
                       <button onClick={() => addPlace(dateStr)}
-                        className="w-full py-2.5 text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-50 transition flex items-center justify-center gap-1 border-t border-gray-100">
+                        className="w-full py-2.5 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-50 transition flex items-center justify-center gap-1 border-t border-gray-100">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
                         </svg>
                         Add Place
                       </button>
                     ) : (
-                      <div className="w-full py-2 text-xs text-amber-600 text-center border-t border-gray-100 bg-amber-50/50">
+                      <div className="w-full py-2 text-xs text-amber-700 text-center border-t border-gray-100 bg-amber-50">
                         Select a place in the previous row first
                       </div>
                     )
                   )}
 
                   {/* Day Focus / Remarks */}
-                  <div className="px-5 pb-4 pt-3 border-t border-gray-100">
-                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Day Focus / Remarks</label>
+                  <div className="px-4 sm:px-5 pb-4 pt-3 border-t border-gray-100">
+                    <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1.5">Day Focus / Remarks</label>
                     <textarea
                       rows={2}
                       disabled={!canEdit}
                       value={dayNotes[dateStr] ?? ''}
                       onChange={e => setDayNotes(prev => ({ ...prev, [dateStr]: e.target.value }))}
                       placeholder="Add your focus or notes for the day…"
-                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-green-500 disabled:bg-gray-50 disabled:text-gray-500 placeholder:text-gray-300"
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800 resize-none focus:outline-none focus:ring-2 focus:ring-green-500 disabled:bg-gray-50 disabled:text-gray-500 placeholder:text-gray-500"
                     />
                   </div>
                 </div>
@@ -598,19 +631,19 @@ function MyPlanTab({ userId }: { userId: string | null }) {
           </div>
 
           {/* Footer — stays at bottom of content area, does not overlap sidebar */}
-          <div className="border-t border-gray-200 bg-white px-6 py-3 flex items-center gap-3 -mx-6 -mb-6">
+          <div className="border-t border-gray-200 bg-white px-4 sm:px-6 py-3 flex items-center gap-2 sm:gap-3 -mx-4 sm:-mx-6 -mb-4 sm:-mb-6">
             <div className="flex-1" />
             {canEdit && (
               <>
                 <button onClick={handleSaveDraft} disabled={saving}
-                  className="flex items-center justify-center gap-2 px-8 py-3 border border-gray-300 rounded-xl text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition min-w-[180px]">
+                  className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 sm:px-8 py-3 border border-gray-300 rounded-xl text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition sm:min-w-[180px]">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
                   </svg>
                   Save Draft
                 </button>
                 <button onClick={handleSubmit} disabled={saving}
-                  className="flex items-center justify-center gap-2 px-8 py-3 bg-blue-900 hover:bg-blue-950 text-white rounded-xl text-sm font-semibold disabled:opacity-50 transition min-w-[180px]">
+                  className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 sm:px-8 py-3 bg-blue-900 hover:bg-blue-950 text-white rounded-xl text-sm font-semibold disabled:opacity-50 transition sm:min-w-[180px]">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
                   </svg>
