@@ -59,6 +59,9 @@ type Plan = {
 type Visit = {
   id: string; visit_type: string; entity_name: string; is_new_entity: boolean
   status: string; start_time: string | null; end_time: string | null; duration_secs: number | null
+  notes: string | null
+  latitude: number | null; longitude: number | null; address: string | null
+  end_latitude: number | null; end_longitude: number | null; end_address: string | null
 }
 
 type Expense = {
@@ -328,6 +331,119 @@ function WeeklyPlansTab({ userId, onOpenRemarks }: { userId: string; onOpenRemar
   )
 }
 
+// ---- Review Visit Card (read-only) ----
+function ReviewVisitCard({ v, onOpenRemarks }: {
+  v: Visit; onOpenRemarks: (ctx: { contextType: 'meeting'; contextId: string; title: string }) => void
+}) {
+  const [notesOpen, setNotesOpen] = useState(false)
+  const [locationOpen, setLocationOpen] = useState(false)
+  const [mapOpen, setMapOpen] = useState(false)
+
+  const typeColor = (t: string) =>
+    t === 'Dealer' ? 'bg-blue-100 text-blue-700' :
+    t === 'Distributor' ? 'bg-green-100 text-green-700' :
+    'bg-purple-100 text-purple-700'
+  const statusColor = (s: string) => s === 'Active' ? 'bg-amber-100 text-amber-700' : s === 'Completed' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'
+
+  const hasNotes = !!v.notes?.trim()
+  const hasLocation = v.latitude != null
+  const endMismatch = v.latitude != null && v.end_latitude != null &&
+    (Math.abs(v.latitude - v.end_latitude) > 0.001 || Math.abs((v.longitude ?? 0) - (v.end_longitude ?? 0)) > 0.001)
+
+  return (
+    <div className={`bg-white rounded-2xl border overflow-hidden ${v.status === 'Active' ? 'border-amber-300' : 'border-gray-200'}`}>
+      {v.status === 'Active' && <div className="h-1 bg-gradient-to-r from-amber-400 to-orange-400 animate-pulse" />}
+      {v.status === 'Completed' && <div className="h-1 bg-emerald-400" />}
+      <div className="px-5 py-4">
+        <div className="flex items-center gap-2 flex-wrap mb-1">
+          <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${typeColor(v.visit_type)}`}>{v.visit_type}</span>
+          {v.is_new_entity && <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">New</span>}
+          <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${statusColor(v.status)}`}>{v.status}</span>
+        </div>
+        <p className="font-semibold text-gray-900">{v.entity_name}</p>
+        <div className="flex gap-4 mt-2 text-xs text-gray-500">
+          {v.start_time && <span>Started {new Date(v.start_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}</span>}
+          {v.end_time && <span>Ended {new Date(v.end_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}</span>}
+          {v.status === 'Completed' && v.duration_secs != null && <span className="text-emerald-600 font-medium">{formatDuration(v.duration_secs)}</span>}
+        </div>
+
+        {/* Action row */}
+        <div className="mt-2 pt-2 border-t border-gray-100 flex items-center gap-2">
+          {hasNotes && (
+            <button onClick={() => setNotesOpen(o => !o)}
+              className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition ${notesOpen ? 'bg-amber-50 text-amber-700' : 'text-gray-500 hover:text-amber-700 hover:bg-amber-50'}`}>
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+              </svg>
+              Notes
+            </button>
+          )}
+          {hasLocation && (
+            <button onClick={() => setLocationOpen(o => !o)}
+              className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition ${locationOpen ? 'bg-teal-50 text-teal-700' : 'text-gray-500 hover:text-teal-700 hover:bg-teal-50'}`}>
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" />
+              </svg>
+              Location
+            </button>
+          )}
+          <button onClick={() => onOpenRemarks({ contextType: 'meeting', contextId: v.id, title: v.entity_name })}
+            className="ml-auto p-1.5 rounded-lg text-gray-400 hover:text-blue-500 hover:bg-blue-50 transition" title="Remarks">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Meeting Notes (read-only) */}
+        {notesOpen && hasNotes && (
+          <div className="mt-3 pt-3 border-t border-gray-100">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Meeting Notes</p>
+            <p className="text-sm text-gray-800 whitespace-pre-wrap bg-amber-50 rounded-xl px-3 py-2.5">{v.notes}</p>
+          </div>
+        )}
+
+        {/* Location (read-only) */}
+        {locationOpen && hasLocation && (
+          <div className="mt-3 pt-3 border-t border-gray-100">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Location Details</p>
+            <div className="space-y-2">
+              <div className="bg-teal-50 rounded-lg px-3 py-2">
+                <p className="text-[10px] font-semibold text-teal-600 uppercase mb-0.5">Start Location</p>
+                <p className="text-xs text-gray-700">{v.address ?? `${v.latitude}, ${v.longitude}`}</p>
+              </div>
+              {v.end_latitude != null && (
+                <div className={`rounded-lg px-3 py-2 ${endMismatch ? 'bg-red-50 border border-red-200' : 'bg-teal-50'}`}>
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-[10px] font-semibold text-teal-600 uppercase mb-0.5">End Location</p>
+                    {endMismatch && <span className="text-[10px] font-semibold text-red-600 bg-red-100 px-1.5 py-0.5 rounded-full">Mismatch</span>}
+                  </div>
+                  <p className="text-xs text-gray-700">{v.end_address ?? `${v.end_latitude}, ${v.end_longitude}`}</p>
+                </div>
+              )}
+              <button onClick={() => setMapOpen(o => !o)}
+                className="flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 6.75V15m6-6v8.25m.503 3.498l4.875-2.437c.381-.19.622-.58.622-1.006V4.82c0-.836-.88-1.38-1.628-1.006l-3.869 1.934c-.317.159-.69.159-1.006 0L9.503 3.252a1.125 1.125 0 00-1.006 0L3.622 5.689C3.24 5.88 3 6.27 3 6.695V19.18c0 .836.88 1.38 1.628 1.006l3.869-1.934c.317-.159.69-.159 1.006 0l4.994 2.497c.317.158.69.158 1.006 0z" />
+                </svg>
+                {mapOpen ? 'Hide Map' : 'View on Google Maps'}
+              </button>
+              {mapOpen && (
+                <div className="rounded-xl overflow-hidden border border-gray-200">
+                  <iframe
+                    src={`https://www.google.com/maps?q=${v.latitude},${v.longitude}&z=15&output=embed`}
+                    className="w-full h-48" loading="lazy" referrerPolicy="no-referrer-when-downgrade" title="Meeting start location" />
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ---- Daily Activity Tab ----
 function DailyActivityTab({ userId, onOpenRemarks }: { userId: string; onOpenRemarks: (ctx: { contextType: 'meeting'; contextId: string; title: string }) => void }) {
   const [selectedDate, setSelectedDate] = useState(toDateStr(new Date()))
@@ -352,12 +468,6 @@ function DailyActivityTab({ userId, onOpenRemarks }: { userId: string; onOpenRem
       .catch(() => setLoading(false))
   }, [userId, selectedDate])
 
-  const typeColor = (t: string) =>
-    t === 'Dealer' ? 'bg-blue-100 text-blue-700' :
-    t === 'Distributor' ? 'bg-green-100 text-green-700' :
-    'bg-purple-100 text-purple-700'
-  const statusColor = (s: string) => s === 'Active' ? 'bg-amber-100 text-amber-700' : s === 'Completed' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'
-
   return (
     <div>
       <WeekStrip
@@ -372,33 +482,7 @@ function DailyActivityTab({ userId, onOpenRemarks }: { userId: string; onOpenRem
         <div className="text-center py-12 text-gray-400">No meetings on this day.</div>
       ) : (
         <div className="space-y-3">
-          {visits.map(v => (
-            <div key={v.id} className={`bg-white rounded-2xl border overflow-hidden ${v.status === 'Active' ? 'border-amber-300' : 'border-gray-200'}`}>
-              {v.status === 'Active' && <div className="h-1 bg-gradient-to-r from-amber-400 to-orange-400 animate-pulse" />}
-              {v.status === 'Completed' && <div className="h-1 bg-emerald-400" />}
-              <div className="px-5 py-4">
-                <div className="flex items-center gap-2 flex-wrap mb-1">
-                  <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${typeColor(v.visit_type)}`}>{v.visit_type}</span>
-                  {v.is_new_entity && <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">New</span>}
-                  <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${statusColor(v.status)}`}>{v.status}</span>
-                </div>
-                <p className="font-semibold text-gray-900">{v.entity_name}</p>
-                <div className="flex gap-4 mt-2 text-xs text-gray-500">
-                  {v.start_time && <span>Started {new Date(v.start_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}</span>}
-                  {v.end_time && <span>Ended {new Date(v.end_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}</span>}
-                  {v.status === 'Completed' && v.duration_secs != null && <span className="text-emerald-600 font-medium">{formatDuration(v.duration_secs)}</span>}
-                </div>
-                <div className="mt-2 pt-2 border-t border-gray-100 flex justify-end">
-                  <button onClick={() => onOpenRemarks({ contextType: 'meeting', contextId: v.id, title: v.entity_name })}
-                    className="p-1.5 rounded-lg text-gray-400 hover:text-blue-500 hover:bg-blue-50 transition" title="Remarks">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z" />
-                    </svg>
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
+          {visits.map(v => <ReviewVisitCard key={v.id} v={v} onOpenRemarks={onOpenRemarks} />)}
         </div>
       )}
     </div>
