@@ -7,8 +7,9 @@ import { checkPermission, forbidden } from '@/lib/permissions'
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
-  const user = await requireUser()
-  if (!await checkPermission(user, 'lead_stages', 'view')) return forbidden()
+  // Reference data: any authenticated user may read it (used by the Leads form).
+  // Managing the master still requires create/edit permission below.
+  await requireUser()
   const supabase = createServerSupabase()
   const { data, error } = await supabase
     .from('lead_stages')

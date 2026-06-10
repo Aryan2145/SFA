@@ -5,8 +5,9 @@ import { requireUser } from '@/lib/auth'
 import { checkPermission, forbidden } from '@/lib/permissions'
 
 export async function GET(req: NextRequest) {
-  const user = await requireUser()
-  if (!await checkPermission(user, 'talukas', 'view')) return forbidden()
+  // Reference data: any authenticated user may read it (used by meeting/weekly-plan/
+  // business-partner forms). Managing the master still requires edit permission below.
+  await requireUser()
   const q = req.nextUrl.searchParams.get('q') ?? ''
   const districtId = req.nextUrl.searchParams.get('districtId')
   const supabase = createServerSupabase()

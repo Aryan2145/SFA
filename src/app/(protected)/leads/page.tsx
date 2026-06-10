@@ -258,7 +258,7 @@ export default function LeadsPage() {
   const [leadTypes, setLeadTypes] = useState<{ id: string; name: string }[]>([])
 
   useEffect(() => {
-    fetch('/api/masters/lead-types').then(r => r.json()).then(setLeadTypes).catch(() => toast('Failed to load lead types', 'error'))
+    fetch('/api/masters/lead-types').then(r => r.json()).then(d => setLeadTypes(Array.isArray(d) ? d : [])).catch(() => toast('Failed to load lead types', 'error'))
   }, [toast])
 
   function openAdd() {

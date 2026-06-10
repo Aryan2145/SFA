@@ -45,9 +45,9 @@ export function useBPForm() {
   const [villages,  setVillages]  = useState<VillageItem[]>([])
 
   useEffect(() => {
-    fetch('/api/masters/districts').then(r => r.json()).then(setDistricts).catch(() => toast('Failed to load location data. Please refresh.', 'error'))
-    fetch('/api/masters/talukas').then(r => r.json()).then(setTalukas).catch(() => toast('Failed to load location data. Please refresh.', 'error'))
-    fetch('/api/masters/villages').then(r => r.json()).then(setVillages).catch(() => toast('Failed to load location data. Please refresh.', 'error'))
+    fetch('/api/masters/districts').then(r => r.json()).then(d => setDistricts(Array.isArray(d) ? d : [])).catch(() => toast('Failed to load location data. Please refresh.', 'error'))
+    fetch('/api/masters/talukas').then(r => r.json()).then(d => setTalukas(Array.isArray(d) ? d : [])).catch(() => toast('Failed to load location data. Please refresh.', 'error'))
+    fetch('/api/masters/villages').then(r => r.json()).then(d => setVillages(Array.isArray(d) ? d : [])).catch(() => toast('Failed to load location data. Please refresh.', 'error'))
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const { placeOptions, placeMap } = useMemo(() => {
@@ -189,8 +189,8 @@ export function BusinessPartnerFormFields({
   const [temps, setTemps]    = useState<LeadTemp[]>([])
   useEffect(() => {
     if (!showLeadStatus) return
-    fetch('/api/masters/lead-stages').then(r => r.json()).then(setStages).catch(() => toast('Failed to load lead status options.', 'error'))
-    fetch('/api/masters/lead-temperatures').then(r => r.json()).then(setTemps).catch(() => toast('Failed to load lead status options.', 'error'))
+    fetch('/api/masters/lead-stages').then(r => r.json()).then(d => setStages(Array.isArray(d) ? d : [])).catch(() => toast('Failed to load lead status options.', 'error'))
+    fetch('/api/masters/lead-temperatures').then(r => r.json()).then(d => setTemps(Array.isArray(d) ? d : [])).catch(() => toast('Failed to load lead status options.', 'error'))
   }, [showLeadStatus]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
