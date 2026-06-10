@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
   // Query user by contact globally (multi-tenant: no tenant filter)
   const { data: user, error: dbError } = await supabase
     .from('users')
-    .select('id, name, profile, contact, password, status, tenant_id, credentials_version')
+    .select('id, name, profile, contact, password, status, tenant_id, credentials_version, roles(name)')
     .eq('contact', phone.trim())
     .order('created_at', { ascending: true })
     .limit(1)
@@ -52,11 +52,18 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Resolve the effective role the same way requireUser() does:
+    // Administrator profile stays 'Administrator'; otherwise use the assigned
+    // role name (from role_id → roles.name), falling back to 'NoRole'.
+    const roleName = (user.roles as unknown as { name: string } | null)?.name
+    const effectiveRole =
+      user.profile === 'Administrator' ? 'Administrator' : (roleName ?? 'NoRole')
+
     const token = await signSession({
       phone: user.contact,
       userId: user.id,
       name: user.name,
-      role: user.profile,
+      role: effectiveRole,
       tenantId: user.tenant_id ?? process.env.DEFAULT_TENANT_ID ?? '',
       cv: user.credentials_version ?? 1,
     })
